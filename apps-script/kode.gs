@@ -9,9 +9,7 @@ const CONFIG = {
   DB_ID: '1iz7B7MzBqIU4u72N4SyoeOA0NTA4EiNnYSIHE8hDpV0',
   STOK_ID: '1m3Kzzw0H84NVxBXmhIvcrQDQ6q2MmciTmbwV_cqKtJY',
   FOTO_FOLDER_ID: '16nDd0ozjr6eR3JcKmyBEnB-16HDqa9jb',
-  NOTIF_EMAIL: 'alfiannurhuda1@gmail.com', // Ganti dengan email admin Anda
-  TELEGRAM_TOKEN: '',                      // Isi token bot Telegram Anda jika ingin menggunakan notif WA/Telegram alternatif
-  TELEGRAM_CHAT_ID: ''                     // Isi Chat ID Telegram Anda
+  NOTIF_EMAIL: 'alfiannurhuda1@gmail.com' // Ganti dengan email Anda
 };
 
 function doGet(e) {
@@ -427,7 +425,7 @@ function simpanLaporanSalah(data) {
         sheet.appendRow([timestamp, data.user, data.toko, data.kategori, displayNama, `Lapor ${data.tipeMasalah}: ${data.nilaiBaru} (Sys:${data.nilaiLama})`, "Salah", false]);
         try { sheet.getRange(sheet.getLastRow(), 8).insertCheckboxes(); } catch(e){}
         
-        // --- 1. KIRIM NOTIFIKASI EMAIL (GRATIS) ---
+        // --- KIRIM NOTIFIKASI EMAIL (GRATIS via Gmail Anda) ---
         if (CONFIG.NOTIF_EMAIL) {
           try {
             const subject = `[Laporan Selisih] ${data.toko} - ${displayNama}`;
@@ -448,42 +446,8 @@ function simpanLaporanSalah(data) {
           }
         }
 
-        // --- 2. KIRIM NOTIFIKASI TELEGRAM (ALTERNATIF GRATIS INSTAN) ---
-        const teleMessage = `⚠️ <b>LAPORAN SELISIH STOK</b> ⚠️\n\n` +
-                            `• <b>Konter</b>: ${data.toko}\n` +
-                            `• <b>Karyawan</b>: ${data.user}\n` +
-                            `• <b>Kategori</b>: ${data.kategori}\n` +
-                            `• <b>Produk</b>: ${displayNama}\n` +
-                            `• <b>Tipe</b>: Selisih ${data.tipeMasalah}\n` +
-                            `• <b>Sistem</b>: ${data.nilaiLama}\n` +
-                            `• <b>Fisik Real</b>: ${data.nilaiBaru}\n` +
-                            `• <b>Waktu</b>: ${timestamp}`;
-        sendTelegramNotif(teleMessage);
-
         return response(true, "Laporan Terkirim");
     } catch(e) { return response(false, e.toString()); }
-}
-
-// Helper untuk mengirim notifikasi Telegram Bot
-function sendTelegramNotif(message) {
-  if (!CONFIG.TELEGRAM_TOKEN || !CONFIG.TELEGRAM_CHAT_ID) return;
-  try {
-    const url = "https://api.telegram.org/bot" + CONFIG.TELEGRAM_TOKEN + "/sendMessage";
-    const payload = {
-      chat_id: CONFIG.TELEGRAM_CHAT_ID,
-      text: message,
-      parse_mode: 'HTML'
-    };
-    const options = {
-      method: 'post',
-      contentType: 'application/json',
-      payload: JSON.stringify(payload),
-      muteHttpExceptions: true
-    };
-    UrlFetchApp.fetch(url, options);
-  } catch(e) {
-    Logger.log("Gagal kirim notif Telegram: " + e.toString());
-  }
 }
 
 // --- PENGELUARAN (TAMBAH, EDIT, HAPUS) ---
