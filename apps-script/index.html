@@ -1,0 +1,310 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+  <base target="_top">
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
+  <title>Karyawan App</title>
+  
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+  
+  <?!= include('Stylesheet'); ?>
+</head>
+<body class="bg-light">
+
+<div id="view-login" class="position-fixed top-0 start-0 w-100 h-100 bg-white d-flex align-items-center justify-content-center" style="z-index: 1040;">
+  <div class="container-fluid px-2 px-sm-4" style="max-width:420px;">
+    <div class="text-center mb-4">
+       <div class="bg-primary text-white rounded-circle d-inline-flex align-items-center justify-content-center mb-3" style="width: 80px; height: 80px;">
+          <i class="fa-solid fa-layer-group fs-1"></i>
+       </div>
+       <h2 class="fw-bold">MobileCell</h2>
+       <p class="text-muted">Silakan login untuk memulai shift</p>
+    </div>
+    
+    <div class="card border-0 shadow-sm rounded-4 p-2">
+      <div class="card-body">
+        <div class="mb-3">
+          <label class="form-label small fw-bold">Email</label>
+          <input type="email" id="loginEmail" class="form-control rounded-pill px-3" placeholder="nama@email.com">
+        </div>
+        <div class="mb-4">
+          <label class="form-label small fw-bold">Password</label>
+          <input type="password" id="loginPass" class="form-control rounded-pill px-3" placeholder="••••••••">
+        </div>
+        <button class="btn btn-primary w-100 rounded-pill py-2 fw-bold" onclick="authLogin()">
+          MASUK
+        </button>
+      </div>
+    </div>
+    <div class="text-center mt-4 small text-muted">
+      Versi 1.3.5 &bull; 2026
+    </div>
+  </div>
+</div>
+
+  <nav class="navbar fixed-top bg-primary shadow-sm text-white" style="padding-top: env(safe-area-inset-top);">
+    <div class="container-fluid d-flex justify-content-between align-items-center">
+      <div class="d-flex align-items-center gap-2">
+        <i class="fa-solid fa-layer-group fs-4"></i>
+        <span class="fw-bold fs-5">MobileCell</span>
+      </div>
+      <div id="digitalClock" class="small fw-bold opacity-75">00:00</div>
+    </div>
+  </nav>
+
+  <main class="container-fluid" style="padding-top: 70px; padding-bottom: 90px;">
+    
+    <div id="view-home" class="page-section animate-fade">
+        <div class="w-100 bg-warning bg-opacity-10 border-bottom border-warning text-dark py-2 overflow-hidden mb-3">
+          <div class="d-flex align-items-center px-3">
+            <i class="fa-solid fa-bullhorn text-warning me-2"></i>
+            <marquee id="marqueeText" scrollamount="6" class="fw-bold small text-secondary" style="width:100%">
+              Memuat Info Pusat...
+            </marquee>
+          </div>
+        </div>
+       <div id="heroProfileCard" class="card border-0 shadow rounded-4 mb-3 text-white" style="background: linear-gradient(135deg, #0d6efd 0%, #0a58ca 100%); overflow: hidden;">
+         <div class="position-absolute top-0 start-0 translate-middle bg-warning opacity-10 rounded-circle" style="width: 200px; height: 200px;"></div>
+
+         <div class="card-body p-4 position-relative">
+            <div class="d-flex justify-content-between align-items-start mb-3">
+               <div class="badge bg-white bg-opacity-25 text-white fw-normal border border-white border-opacity-25 px-3 py-1 rounded-pill" id="currentDate">
+                 ...
+               </div>
+               <button class="btn btn-sm btn-light bg-white bg-opacity-25 border-0 text-white rounded-circle shadow-sm" style="width: 38px; height: 38px; backdrop-filter: blur(5px);" onclick="refreshHome(this)">
+                  <i class="fa-solid fa-arrows-rotate"></i>
+               </button>
+            </div>
+
+            <div class="d-flex align-items-center gap-3">
+               <div class="avatar-circle bg-white text-primary fw-bold fs-3 shadow-sm" style="width: 55px; height: 55px;" id="userInitial">U</div>
+               <div class="w-100">
+                 <div class="small text-white text-opacity-75 text-uppercase ls-1" style="font-size: 0.7rem;">Selamat Bekerja,</div>
+                 <h4 class="fw-bold mb-1 text-truncate" id="userName">...</h4>
+                 <div class="d-flex gap-1">
+                    <span class="badge bg-black bg-opacity-25 border border-white border-opacity-25 fw-normal" id="userKonter">-</span>
+                    <span class="badge bg-black bg-opacity-25 border border-white border-opacity-25 fw-normal" id="userShift">-</span>
+                 </div>
+               </div>
+            </div>
+         </div>
+       </div>
+
+       <div id="panelAbsensi">
+           <div class="card border-0 shadow-sm rounded-4 mb-4 bg-white">
+             <div class="card-body p-4 text-center">
+                <div class="mb-4">
+                   <h5 class="fw-bold mb-1">Selamat Bekerja!</h5>
+                   <p class="text-muted small mb-0">Silakan klik tombol di bawah untuk mencatat kehadiran Anda hari ini.</p>
+                </div>
+                <button id="btnAbsenMasuk" class="btn btn-success w-100 rounded-pill py-3 shadow-sm animate-fade" onclick="prosesAbsen('Masuk')" style="background: linear-gradient(to right, #198754, #20c997); border:none;">
+                   <i class="fa-solid fa-right-to-bracket me-2"></i> ABSEN MASUK
+                </button>
+             </div>
+           </div>
+       </div>
+
+      <div id="panelDashboard" class="d-none animate-fade">
+           <div class="row g-2 mb-4">
+              <div class="col-12">
+                 <div class="card border-0 shadow-sm rounded-4 bg-white">
+                    <div class="card-body p-3 d-flex justify-content-between align-items-center">
+                       <div>
+                          <div class="text-muted small text-uppercase fw-bold mb-1" style="font-size:0.65rem;">Total Penjualan</div>
+                          <h3 class="fw-bold text-primary mb-0" id="dashPenjualan">Rp 0</h3>
+                       </div>
+                       <div class="rounded-circle bg-primary bg-opacity-10 text-primary d-flex align-items-center justify-content-center" style="width: 48px; height: 48px; font-size: 1.2rem;">
+                          <i class="fa-solid fa-sack-dollar"></i>
+                       </div>
+                    </div>
+                 </div>
+              </div>
+              <div class="col-6">
+                 <div class="card border-0 shadow-sm rounded-4 bg-white h-100">
+                    <div class="card-body p-3">
+                       <span class="text-muted small fw-bold" style="font-size:0.65rem;">PENGELUARAN</span>
+                       <h6 class="fw-bold text-danger mb-0 mt-1" id="dashPengeluaran">Rp 0</h6>
+                    </div>
+                 </div>
+              </div>
+              <div class="col-6">
+                 <div class="card border-0 shadow-sm rounded-4 bg-white h-100">
+                    <div class="card-body p-3">
+                       <span class="text-muted small fw-bold" style="font-size:0.65rem;">BERSIH / SELISIH</span>
+                       <h6 class="fw-bold text-success mb-0 mt-1" id="dashSelisih">Rp 0</h6>
+                    </div>
+                 </div>
+              </div>
+           </div>
+           
+           <button class="btn btn-danger w-100 rounded-4 py-3 shadow-sm border-0 mt-3" onclick="prosesAbsen('Pulang')" style="background: linear-gradient(to right, #dc3545, #ff6b6b);">
+               <i class="fa-solid fa-person-walking-arrow-right me-2"></i> ABSEN PULANG
+           </button>
+       </div>
+    </div>
+
+    <div id="view-stok" class="page-section d-none animate-fade">
+       <div class="sticky-top bg-light pb-2" style="top: 55px; z-index: 5;">
+         <div class="d-flex justify-content-between align-items-center mb-2">
+            <h5 class="fw-bold mb-0 text-dark">Data Stok</h5>
+            <div class="d-flex gap-2 align-items-center">
+               <span class="badge bg-primary rounded-pill px-3 py-2" id="stokNamaToko">...</span>
+               <button class="btn btn-light rounded-circle border shadow-sm" style="width:38px; height:38px;" onclick="loadStok()">
+                  <i class="fa-solid fa-arrows-rotate text-primary"></i>
+               </button>
+            </div>
+         </div>
+         
+          <div class="d-flex align-items-center gap-2 px-1 mb-3">
+            <div class="position-relative shadow-sm rounded-pill bg-white flex-grow-1">
+               <input type="text" class="form-control rounded-pill border-0 py-2 ps-4 pe-5" id="searchStok" placeholder="Cari barang..." onkeyup="filterStok()">
+               <i class="fa-solid fa-magnifying-glass position-absolute top-50 end-0 translate-middle-y me-3 text-muted"></i>
+            </div>
+            <div>
+               <input type="checkbox" class="btn-check" id="toggleStokAda" autocomplete="off" onchange="toggleStokFilter(this)">
+               <label class="btn btn-light shadow-sm rounded-circle border d-flex align-items-center justify-content-center" 
+                      for="toggleStokAda" id="labelStokFilter" 
+                      style="width: 42px; height: 42px; transition: all 0.2s ease-in-out;">
+                  <i class="fa-solid fa-layer-group text-muted"></i>
+               </label>
+            </div>
+         </div>
+
+         <div class="d-flex gap-2 overflow-auto pb-1 no-scrollbar" id="filterKategoriContainer"></div>
+       </div>
+
+       <div id="stokContainer" class="row g-2 pb-5">
+          <div class="col-12 text-center py-5 text-muted">Memuat data...</div>
+       </div>
+    </div>
+    
+    <div id="view-akun" class="page-section d-none pb-5">
+      <div class="card border-0 shadow-sm text-white mb-3" style="background: linear-gradient(135deg, #0d6efd 0%, #0a58ca 100%); border-radius: 0 0 25px 25px;">
+          <div class="card-body text-center p-4">
+              <div class="bg-white text-primary rounded-circle mx-auto d-flex align-items-center justify-content-center shadow mb-3" 
+                  style="width: 70px; height: 70px; font-size: 2rem; font-weight: bold;" id="akunInisial">
+                  -
+              </div>
+              <h5 class="fw-bold mb-0" id="akunNama">Memuat...</h5>
+              <p class="small opacity-75 mb-0" id="akunEmail">Karyawan</p>
+          </div>
+      </div>
+
+      <div class="container px-3" style="margin-top: -30px;">
+          <div class="card border-0 shadow-sm rounded-4 mb-3">
+              <div class="card-body p-3">
+                  <h6 class="fw-bold text-muted small mb-3">DETAIL PEKERJAAN</h6>
+                  
+                  <div class="d-flex align-items-center mb-3">
+                      <div class="bg-light rounded-circle p-2 me-3"><i class="fa-solid fa-shop text-primary"></i></div>
+                      <div>
+                          <div class="small text-muted">Lokasi Konter</div>
+                          <div class="fw-bold text-dark" id="akunToko">-</div>
+                      </div>
+                  </div>
+
+                  <div class="d-flex align-items-center mb-3">
+                      <div class="bg-light rounded-circle p-2 me-3"><i class="fa-solid fa-clock text-warning"></i></div>
+                      <div>
+                          <div class="small text-muted">Shift Kerja</div>
+                          <div class="fw-bold text-dark" id="akunShift">-</div>
+                      </div>
+                  </div>
+
+                  <div class="d-flex align-items-center mb-3">
+                      <div class="bg-light rounded-circle p-2 me-3"><i class="fa-solid fa-fingerprint text-success"></i></div>
+                      <div>
+                          <div class="small text-muted">Status Absen</div>
+                          <div class="fw-bold" id="akunStatus">-</div>
+                      </div>
+                  </div>
+
+                  <div class="d-flex align-items-center d-none" id="rowJamMasuk">
+                      <div class="bg-light rounded-circle p-2 me-3"><i class="fa-regular fa-clock text-info"></i></div>
+                      <div>
+                          <div class="small text-muted">Waktu Masuk</div>
+                          <div class="fw-bold text-primary fs-5" id="akunJamMasuk">-</div>
+                      </div>
+                  </div>
+
+                  <button class="btn btn-light w-100 rounded-pill py-2 border mb-2" onclick="UI.modalGantiSandi()">
+                    <i class="fa-solid fa-key me-2 text-warning"></i> Atur Kata Sandi
+                  </button>
+
+                  <button class="btn btn-outline-danger w-100 rounded-pill py-2 fw-bold shadow-sm mb-4" onclick="Controller.logout()">
+                      <i class="fa-solid fa-right-from-bracket me-2"></i> KELUAR APLIKASI
+                  </button>
+              </div>
+          </div>
+
+          <div class="text-center text-muted small mb-5 mt-4">
+              <p class="mb-0">Versi Aplikasi 1.4.0 (Lite)</p>
+              <p>&copy; 2026 Karyawan App</p>
+          </div>
+      </div>
+  </div>
+  </main>
+
+  <div class="fab-container" id="fabSave" onclick="simpanSemuaPerubahan()" style="display: none;">
+     <button class="btn-fab"><i class="fa-solid fa-floppy-disk"></i></button>
+     <div class="fab-badge" id="fabCount">0</div>
+  </div>
+
+  <nav class="navbar fixed-bottom bg-white border-top shadow-lg" style="height: 70px; padding-bottom: env(safe-area-inset-bottom); z-index: 1040;">
+    <div class="container-fluid d-flex justify-content-around h-100 align-items-center">
+      <button class="nav-item-mobile btn-reset active" id="btn-nav-home" onclick="navTo('home')">
+         <i class="fa-solid fa-fingerprint fs-4"></i>
+         <span>Absen</span>
+      </button>
+      <button class="nav-item-mobile btn-reset opacity-50" id="btn-nav-stok" onclick="navTo('stok')" disabled style="pointer-events: none;">
+         <i class="fa-solid fa-lock fs-4" id="iconStok"></i>
+         <span>Stok</span>
+      </button>
+      <button class="nav-item-mobile btn-reset" id="btn-nav-akun" onclick="navTo('akun')">
+         <i class="fa-solid fa-user fs-4"></i>
+         <span>Akun</span>
+      </button>
+    </div>
+  </nav>
+
+  <div class="modal fade" id="modalLapor" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered">
+      <div class="modal-content border-0 shadow rounded-4">
+        <div class="modal-header bg-warning bg-gradient text-dark py-2">
+           <h6 class="modal-title fw-bold small">Lapor Selisih / Topup</h6>
+           <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+        </div>
+        <div class="modal-body bg-light">
+           <form id="formLapor">
+              <input type="hidden" id="laporNama">
+              <input type="hidden" id="laporKategori">
+              <input type="hidden" id="laporTipe">
+              
+              <div class="alert alert-white border shadow-sm py-2 px-3 mb-3">
+                 <div class="fw-bold text-dark" id="dispLaporNama">...</div>
+                 <div class="d-flex mt-1 small">
+                    <span>Data Sistem: <b id="dispLaporAngka">0</b></span>
+                 </div>
+              </div>
+              
+              <div class="mb-2">
+                 <label class="form-label small fw-bold">Jumlah Real / Fisik</label>
+                 <input type="number" class="form-control" id="laporNilaiBaru" placeholder="0">
+              </div>
+           </form>
+        </div>
+        <div class="modal-footer py-1 bg-white">
+           <button type="button" class="btn btn-sm btn-warning w-100 fw-bold shadow-sm" onclick="kirimLaporan()">Kirim Laporan</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
+  <?!= include('JavaScript'); ?>
+
+</body>
+</html>

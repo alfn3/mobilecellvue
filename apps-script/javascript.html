@@ -1,0 +1,411 @@
+<script>
+/**
+ * ============================================================================
+ * 🟠 FRONTEND: CLIENT SIDE CONTROLLER (LITE MODE - FIX UI & NEGATIF)
+ * ============================================================================
+ */
+
+var currentToko = "";
+var currentUser = "";
+
+const App = {
+  user: { name: 'Guest', store: '', shift: '', email: '' },
+  status: { isAbsen: false, type: 'Masuk', jamMasuk: '-' },
+  data: { stockCache: [], unsaved: {}, changed: new Set() },
+  ui: {
+    moneyColors: [
+      { label: "BENDEL JUTAAN",  grad: "linear-gradient(135deg, #ff0844 0%, #ffb199 100%)", icon: "fa-money-bill-1-wave" },
+      { label: "BENDEL PULUHAN", grad: "linear-gradient(135deg, #667eea 0%, #764ba2 100%)", icon: "fa-money-bill" },
+      { label: "BENDEL RIBUAN",  grad: "linear-gradient(135deg, #868f96 0%, #596164 100%)", icon: "fa-money-bills" },
+      { label: "KOIN",           grad: "linear-gradient(135deg, #f09819 0%, #edde5d 100%)", icon: "fa-coins", text: "text-dark" },
+      { label: "SISA RATUSAN",   grad: "linear-gradient(135deg, #009efd 0%, #2af598 100%)", icon: "fa-sack-dollar" },
+      { label: "SISA PULUHAN",   grad: "linear-gradient(135deg, #ff9a9e 0%, #fecfef 99%, #fecfef 100%)", icon: "fa-wallet", text: "text-dark" },
+      { label: "SISA RIBUAN",    grad: "linear-gradient(135deg, #868f96 0%, #596164 100%)", icon: "fa-piggy-bank", text: "text-dark" },
+      { label: "SISA LAIN 1",    grad: "linear-gradient(135deg, #84fab0 0%, #8fd3f4 100%)", icon: "fa-hand-holding-dollar", text: "text-dark" },
+      { label: "SISA LAIN 2",    grad: "linear-gradient(135deg, #fccb90 0%, #d57eeb 100%)", icon: "fa-comment-dollar", text: "text-dark" },
+      { label: "SISA LAIN 3",    grad: "linear-gradient(135deg, #e0c3fc 0%, #8ec5fc 100%)", icon: "fa-circle-dollar-to-slot", text: "text-dark" }
+    ]
+  }
+};
+
+document.addEventListener('DOMContentLoaded', () => {
+  setInterval(() => {
+    const d = new Date();
+    const el = document.getElementById('digitalClock');
+    if (el) el.innerText = d.toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit' });
+  }, 1000);
+  const elDate = document.getElementById('currentDate');
+  if (elDate) elDate.innerText = new Date().toLocaleDateString('id-ID', { weekday: 'long', year: 'numeric', month: 'short', day: 'numeric' });
+  UI.renderTabs(); UI.disableNav(true);
+});
+
+function authLogin() {
+  const email = document.getElementById('loginEmail').value;
+  const password = document.getElementById('loginPass').value;
+  if (!email || !password) { Swal.fire('Input Kosong', 'Email dan Password wajib diisi!', 'warning'); return; }
+  Swal.fire({ title: 'Memverifikasi...', allowOutsideClick: false, didOpen: () => Swal.showLoading() });
+
+  google.script.run.withSuccessHandler(res => {
+    if (res.success) {
+      App.user = { name: res.data.user.nama, store: res.data.user.konter, shift: res.data.user.shift, email: email };
+      sessionStorage.setItem('STORE_NAME', App.user.store); sessionStorage.setItem('USER_NAME', App.user.name); sessionStorage.setItem('USER_EMAIL_AUTH', email);
+      App.status.isAbsen = res.data.status.sudahMasuk; App.status.jamMasuk = res.data.status.jamMasuk || "-";
+      currentToko = App.user.store; currentUser = App.user.name;
+      UI.updateProfileCard(true);
+      const loginView = document.getElementById('view-login'); if(loginView) loginView.classList.add('d-none');
+      if (App.status.isAbsen) Controller.unlockApp(); else Controller.lockApp();
+      Swal.close();
+    } else { Swal.fire('Gagal Login', res.msg, 'error'); }
+  }).withFailureHandler(err => Swal.fire('Error System', err.toString(), 'error')).loginUser({ email: email, password: password });
+}
+
+const Controller = {
+  checkLogin: () => {
+    UI.text('userName', 'Memuat...');
+    google.script.run.withSuccessHandler(res => {
+      if (res.success) {
+        sessionStorage.setItem('STORE_NAME', res.data.user.konter); sessionStorage.setItem('USER_NAME', res.data.user.nama);
+        App.user = { name: res.data.user.nama, store: res.data.user.konter, shift: res.data.user.shift };
+        App.status.isAbsen = res.data.status.sudahMasuk; App.status.jamMasuk = res.data.status.jamMasuk || "-";
+        currentToko = App.user.store; currentUser = App.user.name;
+        UI.updateProfileCard(true);
+        if (App.status.isAbsen) Controller.unlockApp(); else Controller.lockApp();
+      } else { UI.updateProfileCard(false); UI.hidePanels(); Swal.fire('Akses Ditolak', res.msg, 'error'); }
+    }).loginUser();
+  },
+  lockApp: () => { UI.show('panelAbsensi'); UI.hide('panelDashboard'); UI.disableNav(true); },
+  unlockApp: () => { UI.hide('panelAbsensi'); UI.show('panelDashboard'); UI.disableNav(false); Controller.loadStok(); Controller.loadDashboard(); },
+  refreshData: (btnElement) => {
+    const store = App.user.store || sessionStorage.getItem('STORE_NAME'); if (!store) return;
+    const icon = btnElement ? btnElement.querySelector('i') : null; if (icon) icon.classList.add('fa-spin');
+    Controller.loadDashboard(); if (App.status.isAbsen) Controller.loadStok();
+    setTimeout(() => { if (icon) icon.classList.remove('fa-spin'); }, 1500);
+  },
+  submitAbsen: (jenis = 'Masuk') => {
+    App.status.type = jenis;
+    Swal.fire({ title: 'Mencatat Kehadiran...', allowOutsideClick: false, didOpen: () => Swal.showLoading() });
+    const payload = { nama: App.user.name || sessionStorage.getItem('USER_NAME'), toko: App.user.store || sessionStorage.getItem('STORE_NAME'), jenis: App.status.type, lat: 0, long: 0, fotoBase64: "", ket: "Absen Tanpa GPS" };
+    google.script.run.withSuccessHandler(res => {
+      if (res.success) {
+        Swal.fire({ icon: 'success', title: 'Berhasil', text: res.msg, timer: 1500, showConfirmButton: false }).then(() => {
+          if (App.status.type === 'Masuk') { App.status.isAbsen = true; const now = new Date(); App.status.jamMasuk = `${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`; Controller.unlockApp(); UI.navTo('stok'); }
+        });
+      } else { Swal.fire('Gagal', res.msg, 'error'); }
+    }).simpanAbsensi(payload);
+  },
+  loadStok: () => {
+    UI.setLoading('stokContainer'); const t = App.user.store || sessionStorage.getItem('STORE_NAME');
+    google.script.run.withSuccessHandler(res => {
+      if (res.success) {
+        App.data.stockCache = res.data.map((item, index) => {
+          const n = (item.nama || "").toLowerCase(), k = (item.kategori || "").toLowerCase(); let tFixed = item.tipe || 'barang';
+          if (n.includes('bendelan') || k === 'uang' || tFixed === 'info') tFixed = 'info'; else if (n.includes('saldo') || n.includes('listrik') || k === 'elektrik') tFixed = 'saldo'; else if (k === 'pengeluaran') tFixed = 'uang';
+          return { ...item, row: item.row || (index + 2), tipe: tFixed };
+        });
+        UI.renderStokList();
+      } else { document.getElementById('stokContainer').innerHTML = `<div class="text-danger">${res.msg}</div>`; }
+    }).getStokMobile(t);
+  },
+  saveBatch: () => {
+    if (App.data.changed.size === 0) return; let itemsToUpdate = [];
+    App.data.changed.forEach(key => {
+      const item = App.data.stockCache.find(i => Utils.makeKey(i) === key);
+      if (item) itemsToUpdate.push({ nama: item.nama, kategori: item.kategori, row: item.row, stokBaru: App.data.unsaved[key], tipe: item.tipe });
+    });
+    Swal.fire({ title: 'Simpan Data?', icon: 'question', showCancelButton: true }).then(r => {
+      if (r.isConfirmed) {
+        Swal.fire({ title: 'Menyimpan...', didOpen: () => Swal.showLoading() });
+        google.script.run.withSuccessHandler(res => {
+          if (res.success) { App.data.changed.clear(); App.data.unsaved = {}; Controller.loadStok(); Swal.fire('Sukses', res.msg, 'success'); }
+        }).batchUpdateStokMobile({ toko: App.user.store, user: App.user.name, items: itemsToUpdate });
+      }
+    });
+  },
+  loadDashboard: () => {
+    UI.text('dashPenjualan', 'Loading...'); const t = App.user.store || sessionStorage.getItem('STORE_NAME');
+    google.script.run.withSuccessHandler(res => {
+      if (res.success) {
+        UI.text('dashPenjualan', res.data.penjualan); UI.text('dashPengeluaran', res.data.pengeluaran);
+        const elMarq = document.getElementById('marqueeText'); if (elMarq) elMarq.innerText = res.data.info;
+        const elSel = document.getElementById('dashSelisih');
+        if (elSel) { elSel.innerText = res.data.selisih; const raw = parseInt(String(res.data.selisih).replace(/[^0-9-]/g, '')) || 0; elSel.className = "fw-bold mb-0 " + (raw < 0 ? "text-danger" : (raw > 0 ? "text-primary" : "text-success")); }
+      }
+    }).getDashboardSummary(t);
+  },
+  submitLaporan: () => {
+    const pl = { user: App.user.name || sessionStorage.getItem('USER_NAME'), toko: App.user.store || sessionStorage.getItem('STORE_NAME'), kategori: document.getElementById('laporKategori').value, nama: document.getElementById('laporNama').value, tipeMasalah: document.getElementById('laporTipe').value, nilaiLama: document.getElementById('dispLaporAngka').innerText, nilaiBaru: document.getElementById('laporNilaiBaru').value, ket: "-" };
+    if (!pl.nilaiBaru) { Swal.fire('Info', 'Isi nilai sebenarnya', 'warning'); return; }
+    bootstrap.Modal.getInstance(document.getElementById('modalLapor')).hide(); google.script.run.simpanLaporanSalah(pl); Swal.fire('Terkirim', 'Laporan dikirim', 'success');
+  },
+  logout: () => { Swal.fire({ title: 'Keluar Aplikasi?', text: "Anda harus login kembali untuk masuk.", icon: 'question', showCancelButton: true, confirmButtonColor: '#dc3545', confirmButtonText: 'Ya, Keluar' }).then((result) => { if (result.isConfirmed) location.reload(); }); }
+};
+
+const UI = {
+  currentKat: 'Semua', isHideZero: false,
+  text: (id, txt) => { const el = document.getElementById(id); if (el) el.innerText = txt; },
+  show: (id) => { const el = document.getElementById(id); if (el) el.classList.remove('d-none'); },
+  hide: (id) => { const el = document.getElementById(id); if (el) el.classList.add('d-none'); },
+  hidePanels: () => { UI.hide('panelAbsensi'); UI.hide('panelDashboard'); UI.disableNav(true); },
+  navTo: (pageId) => {
+    document.querySelectorAll('.page-section').forEach(el => el.classList.add('d-none'));
+    const target = document.getElementById('view-' + pageId); if (target) target.classList.remove('d-none');
+    document.querySelectorAll('.nav-item-mobile').forEach(b => b.classList.remove('active'));
+    const btn = document.getElementById('btn-nav-' + pageId); if (btn) btn.classList.add('active');
+    UI.updateFab(); if (pageId === 'akun') UI.renderAkun();
+  },
+  disableNav: (isDisabled) => {
+    const btn = document.getElementById('btn-nav-stok');
+    if (btn) { btn.disabled = isDisabled; btn.style.pointerEvents = isDisabled ? 'none' : 'auto'; btn.style.opacity = isDisabled ? '0.5' : '1'; const icon = btn.querySelector('i'); if (icon) icon.className = isDisabled ? 'fa-solid fa-lock fs-4' : 'fa-solid fa-box-open fs-4'; }
+  },
+  updateProfileCard: (isActive) => {
+    const card = document.getElementById('heroProfileCard'); if (!card) return;
+    if (isActive && App.user && App.user.name) {
+        card.style.background = "linear-gradient(135deg, #0d6efd 0%, #0a58ca 100%)";
+        UI.text('userName', App.user.name); UI.text('userInitial', App.user.name.charAt(0).toUpperCase()); UI.text('userKonter', App.user.store || "-"); UI.text('userShift', App.user.shift || "-");
+        const elStore = document.getElementById('stokNamaToko'); if (elStore) elStore.innerHTML = `<i class="fa-solid fa-shop me-1"></i> ${App.user.store}`;
+    } else {
+        card.style.background = "linear-gradient(135deg, #6c757d 0%, #495057 100%)"; UI.text('userName', "NON-AKTIF"); UI.text('userInitial', "X");
+    }
+  },
+  renderAkun: () => {
+    UI.text('akunNama', App.user.name); UI.text('akunInisial', App.user.name.charAt(0).toUpperCase()); UI.text('akunToko', App.user.store || "-"); UI.text('akunShift', App.user.shift || "-");
+    document.getElementById('akunStatus').innerHTML = App.status.isAbsen ? '<span class="text-success">Sudah Masuk</span>' : '<span class="text-danger">Belum Absen</span>';
+    const rowJam = document.getElementById('rowJamMasuk');
+    if (App.status.isAbsen && App.status.jamMasuk !== "-") { rowJam.classList.remove('d-none'); document.getElementById('akunJamMasuk').innerText = App.status.jamMasuk + " WIB"; } else { rowJam.classList.add('d-none'); }
+  },
+  renderTabs: () => {
+    const container = document.getElementById('filterKategoriContainer');
+    if (container) {
+      container.innerHTML = `<button class="btn btn-xs btn-dark rounded-pill px-3 filter-kat active" onclick="UI.filterKat('Semua',this)">Semua</button> <button class="btn btn-xs btn-white border rounded-pill px-3 filter-kat" onclick="UI.filterKat('Perdana',this)">Perdana</button> <button class="btn btn-xs btn-white border rounded-pill px-3 filter-kat" onclick="UI.filterKat('Voucher',this)">Voucher</button> <button class="btn btn-xs btn-white border rounded-pill px-3 filter-kat" onclick="UI.filterKat('Aksesoris',this)">Acc</button> <button class="btn btn-xs btn-white border rounded-pill px-3 filter-kat" onclick="UI.filterKat('Elektrik',this)">Elektrik</button> <button class="btn btn-xs btn-white border rounded-pill px-3 filter-kat" onclick="UI.filterKat('Pengeluaran',this)">Pengeluaran</button> <button class="btn btn-xs btn-white border rounded-pill px-3 filter-kat" onclick="UI.filterKat('Uang',this)">Uang Cash</button>`;
+    }
+  },
+  filterKat: (kat, btn) => {
+    UI.currentKat = kat; document.querySelectorAll('.filter-kat').forEach(b => { b.classList.remove('btn-dark', 'active'); b.classList.add('btn-white', 'border'); });
+    btn.classList.remove('btn-white', 'border'); btn.classList.add('btn-dark', 'active'); UI.renderStokList();
+  },
+  toggleZero: (el) => {
+    UI.isHideZero = el.checked; const btn = document.getElementById('labelStokFilter'); const icon = btn.querySelector('i');
+    if (UI.isHideZero) { btn.classList.replace('btn-light', 'btn-primary'); icon.className = 'fa-solid fa-eye-slash'; } else { btn.classList.replace('btn-primary', 'btn-light'); icon.className = 'fa-solid fa-layer-group text-muted'; }
+    UI.renderStokList();
+  },
+  renderStokList: () => {
+    const searchEl = document.getElementById('searchStok'); const search = searchEl ? searchEl.value.toLowerCase() : '';
+    const container = document.getElementById('stokContainer'); if (!container) return; container.innerHTML = '';
+    
+    App.data.stockCache.forEach(item => {
+      const n = (item.nama || "").toLowerCase(), k = (item.kategori || "").toLowerCase();
+      if (n.includes('bendelan') || k === 'uang' || item.tipe === 'info') item.tipe = 'info'; else if (n.includes('saldo') || n.includes('listrik') || k === 'elektrik') item.tipe = 'saldo'; else if (k === 'pengeluaran' || item.tipe === 'uang') item.tipe = 'uang'; else item.tipe = 'barang';
+    });
+
+    const filtered = App.data.stockCache.filter(item => {
+      if (UI.currentKat === 'Pengeluaran') return item.tipe === 'uang';
+      if (UI.currentKat === 'Uang') return item.tipe === 'info';
+      const mKat = (UI.currentKat === 'Semua') || (item.kategori === UI.currentKat) || (item.grup === UI.currentKat);
+      const mKey = item.nama.toLowerCase().includes(search);
+      let mStok = true;
+      if (UI.isHideZero && item.tipe === 'barang') {
+        const vA = parseInt(item.awal) || 0, vT = parseInt(item.topup) || 0, vS = parseInt(item.stok) || 0;
+        if (vA <= 0 && vT <= 0 && vS <= 0) mStok = false;
+      }
+      return mKat && mKey && mStok;
+    });
+
+    if (UI.currentKat === 'Pengeluaran') container.innerHTML += UI.btnTambahPengeluaran();
+    if (filtered.length === 0) { if (UI.currentKat !== 'Pengeluaran') container.innerHTML += `<div class="text-center text-muted py-5 small">Data tidak ditemukan.</div>`; return; }
+
+    filtered.forEach(item => {
+      const key = Utils.makeKey(item); const id = `input-${key}`;
+      // PENTING: Gunakan /[^0-9-]/g agar nilai negatif (minus) tidak hilang saat di-parse
+      let rawStr = String(item.tipe === 'barang' || item.tipe === 'saldo' ? item.stok : item.harga);
+      let val = App.data.unsaved.hasOwnProperty(key) ? App.data.unsaved[key] : parseInt(rawStr.replace(/[^0-9-]/g, '')) || 0;
+      
+      if (item.tipe === 'barang') container.insertAdjacentHTML('beforeend', Templates.cardBarang(item, id, val, key));
+      else if (item.tipe === 'saldo') container.insertAdjacentHTML('beforeend', Templates.cardSaldo(item, id, val, key));
+      else if (item.tipe === 'info') container.insertAdjacentHTML('beforeend', Templates.cardUang(item, id, val, key));
+      else if (item.tipe === 'uang') container.insertAdjacentHTML('beforeend', Templates.cardPengeluaran(item, id, val, key));
+    });
+    UI.updateFab();
+  },
+  updateFab: () => { const fab = document.getElementById('fabSave'); if (fab) { if (App.data.changed.size > 0) { fab.style.display = 'flex'; document.getElementById('fabCount').innerText = App.data.changed.size; } else fab.style.display = 'none'; } },
+  modalLapor: (nm, kat, tp, val) => { document.getElementById('laporNama').value = nm; document.getElementById('laporKategori').value = kat; document.getElementById('laporTipe').value = tp; document.getElementById('dispLaporNama').innerText = nm; document.getElementById('dispLaporAngka').innerText = val; document.getElementById('laporNilaiBaru').value = ''; new bootstrap.Modal(document.getElementById('modalLapor')).show(); },
+  setLoading: (id) => { document.getElementById(id).innerHTML = '<div class="text-center py-5"><div class="spinner-border text-primary"></div></div>'; },
+  btnTambahPengeluaran: () => `<div class="col-12 mb-3"><button class="btn btn-outline-danger w-100 border-2 border-dashed rounded-4 py-2 fw-bold" onclick="Utils.modalPengeluaran()"><i class="fa-solid fa-plus me-2"></i> Tambah Pengeluaran</button></div>`,
+  modalGantiSandi: () => {
+    Swal.fire({
+      title: 'Ganti Kata Sandi', html: `<input type="password" id="oldPass" class="form-control mb-2 rounded-pill px-3" placeholder="Kata Sandi Lama"><input type="password" id="newPass" class="form-control mb-2 rounded-pill px-3" placeholder="Kata Sandi Baru"><input type="password" id="confirmPass" class="form-control rounded-pill px-3" placeholder="Konfirmasi Sandi Baru">`, showCancelButton: true, confirmButtonText: 'Update Sandi', confirmButtonColor: '#0d6efd',
+      preConfirm: () => {
+        const oldP = document.getElementById('oldPass').value, newP = document.getElementById('newPass').value, confP = document.getElementById('confirmPass').value;
+        if (!oldP || !newP || !confP) { Swal.showValidationMessage('Semua kolom wajib diisi!'); return false; }
+        if (newP !== confP) { Swal.showValidationMessage('Konfirmasi sandi tidak cocok!'); return false; }
+        if (newP.length < 4) { Swal.showValidationMessage('Sandi baru minimal 4 karakter!'); return false; }
+        return { oldP, newP };
+      }
+    }).then((result) => {
+      if (result.isConfirmed) {
+        Swal.fire({ title: 'Memproses...', didOpen: () => Swal.showLoading() });
+        google.script.run.withSuccessHandler(res => { if (res.success) Swal.fire('Sukses', res.msg, 'success'); else Swal.fire('Gagal', res.msg, 'error'); }).gantiKataSandi({ email: App.user.email || sessionStorage.getItem('USER_EMAIL_AUTH'), sandiLama: result.value.oldP, sandiBaru: result.value.newP });
+      }
+    });
+  }
+};
+
+const Utils = {
+  makeKey: (item) => item.row ? `row_${item.row}_${item.tipe || 'barang'}` : (item.kategori + "_" + item.nama).replace(/[^a-zA-Z0-9]/g, ""),
+  // 1. FIX FORMAT RP: Mendukung nilai negatif otomatis
+  formatRp: (num) => {
+    const isNegatif = num < 0;
+    const absNum = Math.abs(num);
+    const formatted = 'Rp ' + new Intl.NumberFormat('id-ID').format(absNum);
+    return isNegatif ? '- ' + formatted : formatted;
+  },
+  
+  getProviderColor: (brand) => {
+    if (!brand) return '#6c757d'; 
+    const b = brand.toLowerCase();
+    if (b.includes('telkomsel') || b.includes('simpati') || b.includes('as')) return '#dc3545';
+    if (b.includes('indosat') || b.includes('im3')) return '#fd7e14';
+    if (b.includes('xl')) return '#0d6efd';
+    if (b.includes('axis')) return '#6f42c1';
+    if (b.includes('smartfren')) return '#e83e8c';
+    if (b.includes('tri') || b.includes('three')) return '#212529';
+    return '#6c757d';
+  },
+
+  updateTerjualBarang: (el, key, awal, topup, harga) => {
+    let sisa = parseInt(el.value) || 0;
+    let terjual = (awal + topup) - sisa;
+    let nominal = terjual * harga;
+    const elQty = document.getElementById(`qty-${key}`);
+    const elNom = document.getElementById(`nom-${key}`);
+    if(elQty) elQty.innerText = terjual;
+    if(elNom) elNom.innerText = Utils.formatRp(nominal);
+  },
+
+  updateTerjualSaldo: (el, key, awal, topup) => {
+    let sisa = parseInt(el.value.replace(/\D/g, '')) || 0;
+    let nominal = (awal + topup) - sisa;
+    const elNom = document.getElementById(`nom-${key}`);
+    if(elNom) elNom.innerText = Utils.formatRp(nominal);
+  },
+
+  inputMoney: (el) => {
+    let num = parseInt(el.value.replace(/\D/g, '')) || 0;
+    if (el.value.includes('-')) num = -num;
+    el.value = Utils.formatRp(num);
+    Utils.trackChange(el);
+  },
+  
+  trackChange: (el) => {
+    const key = el.getAttribute('data-key');
+    // regex /[^0-9-]/g mempertahankan tanda minus
+    App.data.unsaved[key] = el.type === 'text' ? parseInt(el.value.replace(/[^0-9-]/g, '')) || 0 : parseInt(el.value) || 0;
+    App.data.changed.add(key); UI.updateFab();
+  },
+  
+  modalPengeluaran: () => {
+    Swal.fire({ title: 'Tambah Pengeluaran', html: `<input type="number" id="n" class="form-control mb-2" placeholder="Nominal"><input type="text" id="k" class="form-control" placeholder="Keterangan">`, showCancelButton: true, confirmButtonText: 'Simpan', focusConfirm: false, preConfirm: () => { const n = document.getElementById('n').value, k = document.getElementById('k').value; if (!n || !k) Swal.showValidationMessage('Nominal dan keterangan wajib diisi'); return { n, k }; } }).then(r => { if (!r.isConfirmed) return; Swal.fire({ title: 'Menyimpan...', allowOutsideClick: false, showConfirmButton: false, didOpen: () => Swal.showLoading() }); google.script.run.withSuccessHandler(() => { Controller.loadStok(); Swal.fire({ icon: 'success', title: 'Sukses', timer: 1500, showConfirmButton: false }); }).tambahPengeluaranMobile({ toko: App.user.store, nominal: r.value.n, ket: r.value.k }); });
+  },
+  hapusPengeluaran: (row, nama) => {
+    Swal.fire({ title: `Hapus ${nama}?`, icon: 'warning', showCancelButton: true, confirmButtonColor: '#d33', confirmButtonText: 'Ya, Hapus' }).then(r => { if (r.isConfirmed) { Swal.fire({ title: 'Menghapus...', didOpen: () => Swal.showLoading() }); google.script.run.withSuccessHandler(() => { Controller.loadStok(); Swal.fire('Terhapus', '', 'success'); }).hapusPengeluaranMobile({ toko: App.user.store, row: row }); } });
+  },
+  editPengeluaran: (row, nama, harga) => {
+    Swal.fire({ title: 'Edit Pengeluaran', html: `<input type="number" id="e_n" class="form-control mb-2" value="${harga}"><input type="text" id="e_k" class="form-control" value="${nama}">`, showCancelButton: true, confirmButtonText: 'Update', preConfirm: () => ({ n: document.getElementById('e_n').value, k: document.getElementById('e_k').value }) }).then(r => { if (r.isConfirmed && r.value.n && r.value.k) { Swal.fire({ title: 'Mengupdate...', didOpen: () => Swal.showLoading() }); google.script.run.withSuccessHandler(() => { Controller.loadStok(); Swal.fire('Sukses', '', 'success'); }).editPengeluaranMobile({ toko: App.user.store, row: row, nominal: r.value.n, ket: r.value.k }); } });
+  }
+};
+
+const Templates = {
+  cardBarang: (item, id, val, key) => {
+    const price = parseInt(String(item.harga).replace(/[^0-9-]/g, '')) || 0;
+    const awal = parseInt(String(item.awal).replace(/[^0-9-]/g, '')) || 0;
+    const topup = parseInt(String(item.topup).replace(/[^0-9-]/g, '')) || 0;
+    
+    const qtyTerjual = (awal + topup) - val;
+    const nomTerjual = qtyTerjual * price;
+    const color = Utils.getProviderColor(item.brand);
+
+    return `
+    <div class="col-12"><div class="card-stok-mini" style="border-left: 4px solid ${color};">
+       <div class="d-flex justify-content-between mb-2">
+          <div style="overflow:hidden; padding-right:8px;">
+             <div class="stok-title">${item.nama}</div>
+             <div class="mt-1">
+                 <span class="badge text-white rounded-pill me-1" style="font-size:0.6rem; background-color: ${color};">${item.brand || 'Umum'}</span>
+                 ${price > 0 ? `<span class="badge bg-success bg-opacity-75 ms-1">${Utils.formatRp(price)}</span>` : ''}
+             </div>
+          </div>
+          <div class="text-end" style="min-width: max-content;">
+              <div class="small text-muted fw-bold" style="font-size: 0.85rem;">Terjual: <span id="qty-${key}" class="text-dark">${qtyTerjual}</span></div>
+              <div class="fw-bold text-success" style="font-size: 0.95rem;" id="nom-${key}">${Utils.formatRp(nomTerjual)}</div>
+          </div>
+       </div>
+       <div class="row g-1 align-items-end">
+          <div class="col-3"><div class="box-info box-awal" onclick="UI.modalLapor('${item.nama.replace(/'/g, "\\'")}', '${item.kategori}', 'Awal', '${item.awal}')"><span class="label-tiny">AWAL</span><span class="val-tiny">${item.awal}</span></div></div>
+          <div class="col-3"><div class="box-info box-topup" onclick="UI.modalLapor('${item.nama.replace(/'/g, "\\'")}', '${item.kategori}', 'Topup', '${item.topup}')"><span class="label-tiny">TOPUP</span><span class="val-tiny">+${item.topup}</span></div></div>
+          <div class="col-6 ps-2">
+             <input type="number" class="input-sisa-mini" id="${id}" value="${val}" data-key="${key}" 
+             oninput="Utils.trackChange(this); Utils.updateTerjualBarang(this, '${key}', ${awal}, ${topup}, ${price})">
+          </div>
+       </div>
+    </div></div>`;
+  },
+  
+  cardSaldo: (item, id, val, key) => {
+    const awal = parseInt(String(item.awal).replace(/[^0-9-]/g, '')) || 0;
+    const topup = parseInt(String(item.topup).replace(/[^0-9-]/g, '')) || 0;
+    
+    const nomTerjual = (awal + topup) - val;
+    const color = Utils.getProviderColor(item.brand || 'Elektrik');
+
+    return `
+    <div class="col-12"><div class="card-stok-mini" style="border-left: 4px solid ${color};">
+       <div class="d-flex justify-content-between mb-2">
+          <div style="overflow:hidden; padding-right:8px;">
+             <div class="stok-title">${item.nama}</div>
+             <div class="mt-1">
+                 <span class="badge text-white rounded-pill me-1" style="font-size:0.6rem; background-color: ${color};">Elektrik</span>
+             </div>
+          </div>
+          <div class="text-end" style="min-width: max-content;">
+              <div class="small text-muted fw-bold" style="font-size: 0.65rem;">Nominal Terjual</div>
+              <div class="fw-bold text-success" style="font-size: 0.75rem;" id="nom-${key}">${Utils.formatRp(nomTerjual)}</div>
+          </div>
+       </div>
+       <div class="row g-1 align-items-end">
+          <div class="col-3"><div class="box-info box-awal" onclick="UI.modalLapor('${item.nama.replace(/'/g, "\\'")}', '${item.kategori}', 'Awal', '${item.awal}')"><span class="label-tiny">AWAL</span><span class="val-tiny">${Utils.formatRp(awal)}</span></div></div>
+          <div class="col-3"><div class="box-info box-topup" onclick="UI.modalLapor('${item.nama.replace(/'/g, "\\'")}', '${item.kategori}', 'Topup', '${item.topup}')"><span class="label-tiny">TOPUP</span><span class="val-tiny">+${Utils.formatRp(topup)}</span></div></div>
+          <div class="col-6 ps-2">
+             <input type="text" inputmode="numeric" class="input-sisa-mini" id="${id}" value="${Utils.formatRp(val)}" data-key="${key}" 
+             oninput="Utils.inputMoney(this); Utils.updateTerjualSaldo(this, '${key}', ${awal}, ${topup})">
+          </div>
+       </div>
+    </div></div>`;
+  },
+  
+  cardUang: (item, id, val, key) => {
+    let cfg = App.ui.moneyColors[item.urut] || { grad: "linear-gradient(135deg,#555,#777)", icon: "fa-wallet", label: item.nama };
+    return `<div class="col-12 mb-2"><div class="card border-0 shadow-sm rounded-4 ${cfg.text || 'text-white'}" style="background:${cfg.grad};min-height:90px;"><div class="card-body p-3 d-flex justify-content-between align-items-center overflow-hidden position-relative"><i class="fa-solid ${cfg.icon} position-absolute" style="right:-10px;bottom:-10px;font-size:3.5rem;opacity:0.2;"></i><div style="z-index:2;width:55%"><h6 class="text-uppercase fw-bold mb-0">${cfg.label}</h6></div><div style="z-index:2;width:45%"><input type="text" inputmode="numeric" class="form-control bg-transparent border-0 p-0 fw-bold text-end ${cfg.text || 'text-white'}" id="${id}" value="${Utils.formatRp(val)}" data-key="${key}" oninput="Utils.inputMoney(this)" style="font-size:1.3rem;"></div></div></div></div>`;
+  },
+  
+  // 2. FIX TEMPLATE PENGELUARAN: Menampilkan nominal apa adanya dari formatRp
+  cardPengeluaran: (item, id, val, key) => `
+    <div class="col-12 mb-2">
+      <div class="card border-0 shadow-sm rounded-4 text-white" style="background:linear-gradient(135deg, #cb2d3e, #ef473a);min-height:90px;">
+        <div class="card-body p-3 d-flex justify-content-between align-items-center">
+           <div style="width:60%">
+              <h6 class="fw-bold mb-1">${item.nama}</h6>
+              <div class="d-flex gap-3">
+                 <i class="fa-solid fa-pen-to-square text-white opacity-75 cursor-pointer" onclick="Utils.editPengeluaran('${item.row}', '${item.nama}', '${val}')"></i>
+                 <i class="fa-solid fa-trash text-white opacity-75 cursor-pointer" onclick="Utils.hapusPengeluaran('${item.row}', '${item.nama}')"></i>
+              </div>
+           </div>
+           <div style="width:40%">
+              <input type="text" inputmode="numeric" class="form-control bg-transparent border-0 p-0 fw-bold text-end text-white" 
+                     id="${id}" value="${Utils.formatRp(val)}" readonly style="font-size:1.3rem;">
+           </div>
+        </div>
+      </div>
+    </div>`
+};
+
+window.navTo = UI.navTo; window.refreshHome = Controller.refreshData; window.toggleStokFilter = UI.toggleZero; window.filterStok = UI.renderStokList; window.bukaModalTambahPengeluaran = Utils.modalPengeluaran; window.simpanSemuaPerubahan = Controller.saveBatch; window.prosesAbsen = Controller.submitAbsen; window.filterKategori = UI.filterKat; window.bukaModalLapor = UI.modalLapor; window.kirimLaporan = Controller.submitLaporan; window.loadStok = Controller.loadStok;
+</script>
