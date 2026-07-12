@@ -538,6 +538,7 @@ const submitLaporan = async () => {
     toko: store.user.store,
     kategori: laporData.value.item.kategori,
     nama: laporData.value.item.nama,
+    brand: laporData.value.item.brand || '',
     tipeMasalah: laporData.value.field,
     nilaiLama: laporData.value.sysVal,
     nilaiBaru: laporData.value.realVal,
