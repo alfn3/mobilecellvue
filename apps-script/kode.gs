@@ -415,7 +415,13 @@ function simpanLaporanSalah(data) {
         let sheet = ss.getSheetByName("log");
         if(!sheet) { sheet = ss.insertSheet("log"); sheet.appendRow(["timestamp", "email", "konter", "kategori", "produk", "komentarbaru", "status", "koreksi"]); }
         const timestamp = "'" + Utilities.formatDate(new Date(), Session.getScriptTimeZone(), "dd/MM/yyyy HH:mm:ss");
-        sheet.appendRow([timestamp, data.user, data.toko, data.kategori, data.nama, `Lapor ${data.tipeMasalah}: ${data.nilaiBaru} (Sys:${data.nilaiLama})`, "Salah", false]);
+        
+        // Gabungkan provider (brand) dan nama produk
+        const displayNama = (data.brand && data.brand !== '-' && data.brand.toLowerCase() !== 'umum' && data.brand.toLowerCase() !== 'aksesoris') 
+          ? (String(data.brand).toLowerCase().trim() + "-" + data.nama) 
+          : data.nama;
+
+        sheet.appendRow([timestamp, data.user, data.toko, data.kategori, displayNama, `Lapor ${data.tipeMasalah}: ${data.nilaiBaru} (Sys:${data.nilaiLama})`, "Salah", false]);
         try { sheet.getRange(sheet.getLastRow(), 8).insertCheckboxes(); } catch(e){}
         return response(true, "Laporan Terkirim");
     } catch(e) { return response(false, e.toString()); }
