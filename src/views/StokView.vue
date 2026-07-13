@@ -510,6 +510,7 @@ const saveBatch = () => {
 const openModalLapor = (item, field, sysVal) => {
   const isAwal = field === 'Awal'
   const isReported = isAwal ? item.awalReported : item.topupReported
+  const isSaldo = item.tipe === 'saldo'
   
   if (isReported) {
     const reportedVal = isAwal ? item.awalReportedVal : item.topupReportedVal
@@ -523,8 +524,8 @@ const openModalLapor = (item, field, sysVal) => {
           <p class="mb-2">Laporan salah untuk produk ini sudah dikirim:</p>
           <ul>
             <li>Tipe: <b>Selisih ${field}</b></li>
-            <li>Nilai Sistem: <b>${sysVal}</b></li>
-            <li>Nilai Fisik: <b class="text-danger">${reportedVal}</b></li>
+            <li>Nilai Sistem: <b>${isSaldo ? formatRp(getNumericValue(sysVal)) : sysVal}</b></li>
+            <li>Nilai Fisik: <b class="text-danger">${isSaldo ? formatRp(getNumericValue(reportedVal)) : reportedVal}</b></li>
           </ul>
           <p class="mb-0">Pilih opsi di bawah untuk mengedit atau menghapus laporan ini.</p>
         </div>
