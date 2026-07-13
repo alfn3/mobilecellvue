@@ -122,7 +122,12 @@
                   :class="{ 'reported-error': item.awalReported }"
                   @click="openModalLapor(item, 'Awal', item.awal)"
                 >
-                  <span class="label-tiny">AWAL <i v-if="item.awalReported" class="fa-solid fa-triangle-exclamation text-danger"></i></span>
+                  <span class="label-tiny">
+                    AWAL 
+                    <span v-if="item.awalReported" class="text-danger fw-bold ms-1" style="font-size:0.65rem;">
+                      ⚠️{{ item.awalReportedVal }}
+                    </span>
+                  </span>
                   <span class="val-tiny">{{ item.awal }}</span>
                 </div>
               </div>
@@ -132,7 +137,12 @@
                   :class="{ 'reported-error': item.topupReported }"
                   @click="openModalLapor(item, 'Topup', item.topup)"
                 >
-                  <span class="label-tiny">TOPUP <i v-if="item.topupReported" class="fa-solid fa-triangle-exclamation text-danger"></i></span>
+                  <span class="label-tiny">
+                    TOPUP 
+                    <span v-if="item.topupReported" class="text-danger fw-bold ms-1" style="font-size:0.65rem;">
+                      ⚠️{{ item.topupReportedVal }}
+                    </span>
+                  </span>
                   <span class="val-tiny">+{{ item.topup }}</span>
                 </div>
               </div>
@@ -175,7 +185,12 @@
                   :class="{ 'reported-error': item.awalReported }"
                   @click="openModalLapor(item, 'Awal', item.awal)"
                 >
-                  <span class="label-tiny">AWAL <i v-if="item.awalReported" class="fa-solid fa-triangle-exclamation text-danger"></i></span>
+                  <span class="label-tiny">
+                    AWAL 
+                    <span v-if="item.awalReported" class="text-danger fw-bold ms-1" style="font-size:0.6rem;">
+                      ⚠️{{ formatRp(item.awalReportedVal) }}
+                    </span>
+                  </span>
                   <span class="val-tiny">{{ formatRp(getNumericValue(item.awal)) }}</span>
                 </div>
               </div>
@@ -185,7 +200,12 @@
                   :class="{ 'reported-error': item.topupReported }"
                   @click="openModalLapor(item, 'Topup', item.topup)"
                 >
-                  <span class="label-tiny">TOPUP <i v-if="item.topupReported" class="fa-solid fa-triangle-exclamation text-danger"></i></span>
+                  <span class="label-tiny">
+                    TOPUP 
+                    <span v-if="item.topupReported" class="text-danger fw-bold ms-1" style="font-size:0.6rem;">
+                      ⚠️{{ formatRp(item.topupReportedVal) }}
+                    </span>
+                  </span>
                   <span class="val-tiny">+{{ formatRp(getNumericValue(item.topup)) }}</span>
                 </div>
               </div>
@@ -532,6 +552,108 @@ const saveBatch = () => {
 
 // Lapor Modal Actions
 const openModalLapor = (item, field, sysVal) => {
+  const isAwal = field === 'Awal'
+  const isReported = isAwal ? item.awalReported : item.topupReported
+  
+  if (isReported) {
+    const reportedVal = isAwal ? item.awalReportedVal : item.topupReportedVal
+    const logRow = isAwal ? item.awalReportedRow : item.topupReportedRow
+    const reportedSys = isAwal ? item.awalReportedSys : item.topupReportedSys
+    
+    Swal.fire({
+      title: 'Laporan Selisih',
+      html: `
+        <div class="text-start small">
+          <p class="mb-2">Laporan salah untuk produk ini sudah dikirim:</p>
+          <ul>
+            <li>Tipe: <b>Selisih ${field}</b></li>
+            <li>Nilai Sistem: <b>${sysVal}</b></li>
+            <li>Nilai Fisik: <b class="text-danger">${reportedVal}</b></li>
+          </ul>
+          <p class="mb-0">Pilih opsi di bawah untuk mengedit atau menghapus laporan ini.</p>
+        </div>
+      `,
+      icon: 'info',
+      showDenyButton: true,
+      showCancelButton: true,
+      confirmButtonText: 'Edit Nilai',
+      denyButtonText: 'Hapus Laporan',
+      cancelButtonText: 'Batal',
+      confirmButtonColor: '#0d6efd',
+      denyButtonColor: '#dc3545'
+    }).then(async (result) => {
+      if (result.isConfirmed) {
+        // EDIT LAPORAN
+        Swal.fire({
+          title: 'Edit Nilai Fisik',
+          input: 'number',
+          inputValue: reportedVal,
+          inputLabel: 'Masukkan jumlah real fisik yang benar:',
+          showCancelButton: true,
+          confirmButtonText: 'Update',
+          cancelButtonText: 'Batal',
+          preConfirm: (value) => {
+            if (value === '' || value === null) {
+              Swal.showValidationMessage('Nilai wajib diisi')
+              return false
+            }
+            return value
+          }
+        }).then(async (editResult) => {
+          if (editResult.isConfirmed) {
+            Swal.fire({ title: 'Mengubah Laporan...', didOpen: () => Swal.showLoading() })
+            const displayNama = (item.brand && item.brand !== '-' && item.brand.toLowerCase() !== 'umum' && item.brand.toLowerCase() !== 'aksesoris') 
+              ? (String(item.brand).toLowerCase().trim() + "-" + item.nama) 
+              : item.nama
+              
+            const res = await callApi('editLaporanSalah', {
+              row: logRow,
+              toko: store.user.store,
+              produk: displayNama,
+              tipeMasalah: field,
+              nilaiLama: reportedSys,
+              nilaiBaru: editResult.value
+            })
+            Swal.close()
+            
+            if (res.success) {
+              Swal.fire('Sukses', 'Laporan berhasil diupdate!', 'success')
+              loadStock() // Reload stock to refresh indicators
+            } else {
+              Swal.fire('Gagal', res.msg || 'Terjadi kesalahan.', 'error')
+            }
+          }
+        })
+      } else if (result.isDenied) {
+        // HAPUS LAPORAN
+        Swal.fire({
+          title: 'Hapus Laporan?',
+          text: 'Laporan kesalahan stok ini akan dibatalkan/dihapus dari log.',
+          icon: 'warning',
+          showCancelButton: true,
+          confirmButtonColor: '#dc3545',
+          confirmButtonText: 'Ya, Hapus',
+          cancelButtonText: 'Batal'
+        }).then(async (confirmDelete) => {
+          if (confirmDelete.isConfirmed) {
+            Swal.fire({ title: 'Menghapus Laporan...', didOpen: () => Swal.showLoading() })
+            const res = await callApi('hapusLaporanSalah', { row: logRow })
+            Swal.close()
+            
+            if (res.success) {
+              Swal.fire('Sukses', 'Laporan berhasil dihapus!', 'success')
+              loadStock() // Reload stock to refresh indicators
+            } else {
+              Swal.fire('Gagal', res.msg || 'Terjadi kesalahan.', 'error')
+            }
+          }
+        })
+      }
+    })
+    return
+  }
+
+  // Jika belum dilaporkan, jalankan alur lama (buka modal baru)
   laporData.value = {
     item,
     field,
@@ -567,6 +689,7 @@ const submitLaporan = async () => {
   
   if (res.success) {
     Swal.fire('Terkirim', 'Laporan berhasil dikirim.', 'success')
+    loadStock() // Reload stock to show warning immediately in UI
   } else {
     Swal.fire('Gagal', res.msg || 'Gagal mengirim laporan.', 'error')
   }
