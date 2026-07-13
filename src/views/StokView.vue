@@ -285,41 +285,6 @@
       <div class="fab-badge">{{ changedCount }}</div>
     </div>
 
-    <!-- Modal Lapor (Bootstrap style implemented reactively) -->
-    <div 
-      class="modal fade" 
-      :class="{ show: showLaporModal, 'd-block': showLaporModal }" 
-      tabindex="-1" 
-      style="background: rgba(0,0,0,0.5);"
-      v-if="showLaporModal"
-    >
-      <div class="modal-dialog modal-dialog-centered">
-        <div class="modal-content border-0 shadow rounded-4">
-          <div class="modal-header bg-warning bg-gradient text-dark py-2">
-             <h6 class="modal-title fw-bold small">Lapor Selisih / Topup</h6>
-             <button type="button" class="btn-close" @click="showLaporModal = false"></button>
-          </div>
-          <div class="modal-body bg-light text-dark">
-             <div>
-                <div class="alert alert-white border shadow-sm py-2 px-3 mb-3 bg-white">
-                   <div class="fw-bold text-dark">{{ laporData.item.nama }}</div>
-                   <div class="d-flex mt-1 small">
-                      <span>Data Sistem ({{ laporData.field }}): <b>{{ laporData.sysVal }}</b></span>
-                   </div>
-                </div>
-                
-                <div class="mb-2">
-                   <label class="form-label small fw-bold">Jumlah Real / Fisik</label>
-                   <input type="number" class="form-control" v-model="laporData.realVal" placeholder="0">
-                </div>
-             </div>
-          </div>
-          <div class="modal-footer py-1 bg-white">
-             <button type="button" class="btn btn-sm btn-warning w-100 fw-bold shadow-sm" @click="submitLaporan">Kirim Laporan</button>
-          </div>
-        </div>
-      </div>
-    </div>
   </div>
 </template>
 
@@ -333,15 +298,6 @@ const loading = ref(false)
 const searchQuery = ref('')
 const isHideZero = ref(false)
 const currentKat = ref('Semua')
-
-// Modal Lapor State
-const showLaporModal = ref(false)
-const laporData = ref({
-  item: null,
-  field: '',
-  sysVal: '',
-  realVal: ''
-})
 
 const categories = [
   { id: 'Semua', label: 'Semua' },
@@ -653,46 +609,60 @@ const openModalLapor = (item, field, sysVal) => {
     return
   }
 
-  // Jika belum dilaporkan, jalankan alur lama (buka modal baru)
-  laporData.value = {
-    item,
-    field,
-    sysVal,
-    realVal: ''
-  }
-  showLaporModal.value = true
-}
-
-const submitLaporan = async () => {
-  if (!laporData.value.realVal) {
-    Swal.fire('Info', 'Isi nilai sebenarnya terlebih dahulu.', 'warning')
-    return
-  }
-  
-  showLaporModal.value = false
-  
-  const payload = {
-    user: store.user.name,
-    toko: store.user.store,
-    kategori: laporData.value.item.kategori,
-    nama: laporData.value.item.nama,
-    brand: laporData.value.item.brand || '',
-    tipeMasalah: laporData.value.field,
-    nilaiLama: laporData.value.sysVal,
-    nilaiBaru: laporData.value.realVal,
-    ket: 'Dikirim dari Vue PWA'
-  }
-  
-  Swal.fire({ title: 'Mengirim Laporan...', didOpen: () => Swal.showLoading() })
-  const res = await callApi('simpanLaporanSalah', payload)
-  Swal.close()
-  
-  if (res.success) {
-    Swal.fire('Terkirim', 'Laporan berhasil dikirim.', 'success')
-    loadStock() // Reload stock to show warning immediately in UI
-  } else {
-    Swal.fire('Gagal', res.msg || 'Gagal mengirim laporan.', 'error')
-  }
+  // Jika belum dilaporkan, tampilkan modal KIRIM LAPORAN baru menggunakan SweetAlert2 agar konsisten!
+  Swal.fire({
+    title: 'Lapor Selisih / Topup',
+    html: `
+      <div class="text-start small">
+        <div class="alert alert-white border shadow-sm py-2 px-3 mb-3 bg-white">
+           <div class="fw-bold text-dark mb-1">${item.nama}</div>
+           <div class="small">Tipe: <b>Selisih ${field}</b></div>
+           <div class="small">Data Sistem: <b>${isSaldo ? formatRp(getNumericValue(sysVal)) : sysVal}</b></div>
+        </div>
+        <div class="mb-2">
+           <label class="form-label small fw-bold">Jumlah Real / Fisik Sebenarnya</label>
+           <input type="number" id="swal_new_real_val" class="form-control" placeholder="0">
+        </div>
+      </div>
+    `,
+    showCancelButton: true,
+    confirmButtonText: 'Kirim Laporan',
+    cancelButtonText: 'Batal',
+    confirmButtonColor: '#ffc107',
+    preConfirm: () => {
+      const val = document.getElementById('swal_new_real_val').value
+      if (val === '' || val === null) {
+        Swal.showValidationMessage('Jumlah real/fisik wajib diisi')
+        return false
+      }
+      return val
+    }
+  }).then(async (result) => {
+    if (result.isConfirmed) {
+      const payload = {
+        user: store.user.name,
+        toko: store.user.store,
+        kategori: item.kategori,
+        nama: item.nama,
+        brand: item.brand || '',
+        tipeMasalah: field,
+        nilaiLama: sysVal,
+        nilaiBaru: isSaldo ? result.value : parseInt(result.value),
+        ket: 'Dikirim dari Vue PWA'
+      }
+      
+      Swal.fire({ title: 'Mengirim Laporan...', didOpen: () => Swal.showLoading() })
+      const res = await callApi('simpanLaporanSalah', payload)
+      Swal.close()
+      
+      if (res.success) {
+        Swal.fire('Terkirim', 'Laporan berhasil dikirim.', 'success')
+        loadStock()
+      } else {
+        Swal.fire('Gagal', res.msg || 'Gagal mengirim laporan.', 'error')
+      }
+    }
+  })
 }
 
 // Pengeluaran Actions (tambah, edit, hapus)
