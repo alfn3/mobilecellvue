@@ -8,8 +8,7 @@
 const CONFIG = {
   DB_ID: '1iz7B7MzBqIU4u72N4SyoeOA0NTA4EiNnYSIHE8hDpV0',
   STOK_ID: '1m3Kzzw0H84NVxBXmhIvcrQDQ6q2MmciTmbwV_cqKtJY',
-  FOTO_FOLDER_ID: '16nDd0ozjr6eR3JcKmyBEnB-16HDqa9jb',
-  NOTIF_EMAIL: 'alfiannurhuda1@gmail.com' // Ganti dengan email Anda
+  FOTO_FOLDER_ID: '16nDd0ozjr6eR3JcKmyBEnB-16HDqa9jb'
 };
 
 function doGet(e) {
@@ -350,6 +349,67 @@ function getStokMobile(toko) {
       }); 
     }
 
+    // --- AMBIL DATA LOG LAPORAN SALAH UNTUK MENANDAI BOX ---
+    let reportedItems = {};
+    try {
+      const ssDb = SpreadsheetApp.openById(CONFIG.DB_ID);
+      const shLog = ssDb.getSheetByName("log");
+      if (shLog) {
+        const dataLog = shLog.getDataRange().getValues();
+        const targetStoreName = sheetName.toLowerCase().trim();
+        const originalStoreName = String(toko).toLowerCase().trim();
+        
+        for (let i = 1; i < dataLog.length; i++) {
+          const row = dataLog[i];
+          const logToko = String(row[2]).toLowerCase().trim();
+          const logStatus = String(row[6]).toLowerCase().trim();
+          const logKoreksi = row[7]; // Checkbox (boolean)
+          
+          // Cocokkan baik nama konter asli (e.g. "M3") maupun resolved sheet name (e.g. "toko")
+          const isStoreMatch = (logToko === originalStoreName || logToko === targetStoreName);
+          
+          if (isStoreMatch && logStatus === 'salah' && logKoreksi === false) {
+            const produkName = String(row[4]).toLowerCase().trim(); // produk nama yang dilaporkan
+            const komentar = String(row[5]);
+            
+            const isAwal = komentar.includes("Lapor Awal");
+            const isTopup = komentar.includes("Lapor Topup");
+            
+            if (!reportedItems[produkName]) {
+              reportedItems[produkName] = { awal: false, topup: false };
+            }
+            if (isAwal) reportedItems[produkName].awal = true;
+            if (isTopup) reportedItems[produkName].topup = true;
+          }
+        }
+      }
+    } catch(err) {
+      Logger.log("Gagal membaca log untuk penandaan: " + err.toString());
+    }
+
+    // Tempelkan flag ke masing-masing item
+    results = results.map(item => {
+      if (item.tipe === 'barang' || item.tipe === 'saldo') {
+        const brand = item.brand;
+        const name = item.nama;
+        const hasBrand = brand && brand !== '-' && brand.toLowerCase() !== 'umum' && brand.toLowerCase() !== 'aksesoris';
+        
+        // Buat key pencocokan baru (dengan brand) dan lama (tanpa brand)
+        const pKeyWithBrand = (hasBrand ? (String(brand).toLowerCase().trim() + "-" + name) : name).toLowerCase().trim();
+        const nameWithoutBrand = String(name).toLowerCase().trim();
+        
+        // Cari kecocokan di log berdasarkan format baru maupun lama
+        const reported = reportedItems[pKeyWithBrand] || reportedItems[nameWithoutBrand] || { awal: false, topup: false };
+        
+        return {
+          ...item,
+          awalReported: reported.awal || false,
+          topupReported: reported.topup || false
+        };
+      }
+      return item;
+    });
+
     return response(true, "Data Loaded", results);
   } catch (e) { 
     return response(false, "Gagal Load: " + e.toString()); 
@@ -424,28 +484,6 @@ function simpanLaporanSalah(data) {
 
         sheet.appendRow([timestamp, data.user, data.toko, data.kategori, displayNama, `Lapor ${data.tipeMasalah}: ${data.nilaiBaru} (Sys:${data.nilaiLama})`, "Salah", false]);
         try { sheet.getRange(sheet.getLastRow(), 8).insertCheckboxes(); } catch(e){}
-        
-        // --- KIRIM NOTIFIKASI EMAIL (GRATIS via Gmail Anda) ---
-        if (CONFIG.NOTIF_EMAIL) {
-          try {
-            const subject = `[Laporan Selisih] ${data.toko} - ${displayNama}`;
-            const body = `Halo Admin,\n\n` +
-                         `Ada laporan selisih stok baru:\n\n` +
-                         `• Konter: ${data.toko}\n` +
-                         `• Karyawan: ${data.user}\n` +
-                         `• Kategori: ${data.kategori}\n` +
-                         `• Produk: ${displayNama}\n` +
-                         `• Tipe Laporan: Selisih ${data.tipeMasalah}\n` +
-                         `• Nilai Sistem: ${data.nilaiLama}\n` +
-                         `• Nilai Riil Fisik: ${data.nilaiBaru}\n` +
-                         `• Waktu Kirim: ${timestamp}\n\n` +
-                         `Silakan cek spreadsheet log Anda untuk verifikasi.`;
-            MailApp.sendEmail(CONFIG.NOTIF_EMAIL, subject, body);
-          } catch(err) {
-            Logger.log("Gagal mengirim email: " + err.toString());
-          }
-        }
-
         return response(true, "Laporan Terkirim");
     } catch(e) { return response(false, e.toString()); }
 }
