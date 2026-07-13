@@ -518,37 +518,70 @@ const openModalLapor = (item, field, sysVal) => {
     const reportedSys = isAwal ? item.awalReportedSys : item.topupReportedSys
     
     Swal.fire({
-      title: 'Laporan Selisih',
+      title: `<span class="fw-bold" style="font-family: 'Outfit', sans-serif; color: #dc3545;">Laporan Selisih Stok</span>`,
       html: `
-        <div class="text-start small">
-          <p class="mb-2">Laporan salah untuk produk ini sudah dikirim:</p>
-          <ul>
-            <li>Tipe: <b>Selisih ${field}</b></li>
-            <li>Nilai Sistem: <b>${isSaldo ? formatRp(getNumericValue(sysVal)) : sysVal}</b></li>
-            <li>Nilai Fisik: <b class="text-danger">${isSaldo ? formatRp(getNumericValue(reportedVal)) : reportedVal}</b></li>
-          </ul>
-          <p class="mb-0">Pilih opsi di bawah untuk mengedit atau menghapus laporan ini.</p>
+        <div class="text-start" style="font-family: 'Inter', sans-serif; font-size: 0.9rem;">
+          <div class="card border-0 shadow-sm mb-3 rounded-4" style="background: linear-gradient(135deg, #fff5f5 0%, #fff 100%); border-left: 5px solid #dc3545 !important;">
+            <div class="card-body p-3">
+              <h6 class="fw-bold text-dark mb-1" style="font-size: 0.95rem;">${item.nama}</h6>
+              <div class="text-muted small mb-3">${item.brand && item.brand !== '-' ? item.brand : 'PWA'} (${item.kategori})</div>
+              
+              <div class="row g-2 text-center">
+                <div class="col-6">
+                  <div class="bg-white p-2 rounded-3 border">
+                    <div class="small text-secondary fw-semibold">Nilai Sistem</div>
+                    <div class="fw-bold text-dark mt-1" style="font-size: 0.95rem;">
+                      ${isSaldo ? formatRp(getNumericValue(sysVal)) : sysVal}
+                    </div>
+                  </div>
+                </div>
+                <div class="col-6">
+                  <div class="bg-white p-2 rounded-3 border border-danger bg-danger bg-opacity-10">
+                    <div class="small text-danger fw-semibold">Fisik Dilaporkan</div>
+                    <div class="fw-bold text-danger mt-1" style="font-size: 0.95rem;">
+                      ⚠️ ${isSaldo ? formatRp(getNumericValue(reportedVal)) : reportedVal}
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+          <p class="text-center small text-muted mb-0">Laporan salah untuk produk ini sudah dikirim. Pilih tindakan di bawah:</p>
         </div>
       `,
-      icon: 'info',
+      icon: 'warning',
       showDenyButton: true,
       showCancelButton: true,
-      confirmButtonText: 'Edit Nilai',
-      denyButtonText: 'Hapus Laporan',
+      confirmButtonText: '<i class="fa-solid fa-pen-to-square me-1"></i> Edit Nilai',
+      denyButtonText: '<i class="fa-solid fa-trash me-1"></i> Hapus Lapor',
       cancelButtonText: 'Batal',
       confirmButtonColor: '#0d6efd',
-      denyButtonColor: '#dc3545'
+      denyButtonColor: '#dc3545',
+      cancelButtonColor: '#6c757d',
+      customClass: {
+        popup: 'rounded-4 border-0 shadow-lg',
+        confirmButton: 'btn btn-primary fw-bold px-3 py-2 rounded-3 me-2 shadow-sm',
+        denyButton: 'btn btn-danger fw-bold px-3 py-2 rounded-3 me-2 shadow-sm',
+        cancelButton: 'btn btn-secondary fw-bold px-3 py-2 rounded-3'
+      }
     }).then(async (result) => {
       if (result.isConfirmed) {
         // EDIT LAPORAN
         Swal.fire({
-          title: 'Edit Nilai Fisik',
+          title: `<span class="fw-bold" style="font-family: 'Outfit', sans-serif; color: #0d6efd;">Revisi Nilai Fisik</span>`,
           input: 'number',
-          inputValue: reportedVal,
+          inputValue: getNumericValue(reportedVal),
           inputLabel: 'Masukkan jumlah real fisik yang benar:',
           showCancelButton: true,
-          confirmButtonText: 'Update',
+          confirmButtonText: 'Simpan Revisi',
           cancelButtonText: 'Batal',
+          confirmButtonColor: '#0d6efd',
+          cancelButtonColor: '#6c757d',
+          customClass: {
+            popup: 'rounded-4 border-0 shadow-lg',
+            confirmButton: 'btn btn-primary fw-bold px-4 py-2 rounded-3 shadow-sm',
+            cancelButton: 'btn btn-secondary fw-bold px-4 py-2 rounded-3'
+          },
           preConfirm: (value) => {
             if (value === '' || value === null) {
               Swal.showValidationMessage('Nilai wajib diisi')
@@ -569,7 +602,7 @@ const openModalLapor = (item, field, sysVal) => {
               produk: displayNama,
               tipeMasalah: field,
               nilaiLama: reportedSys,
-              nilaiBaru: editResult.value
+              nilaiBaru: isSaldo ? editResult.value : parseInt(editResult.value)
             })
             Swal.close()
             
@@ -590,7 +623,12 @@ const openModalLapor = (item, field, sysVal) => {
           showCancelButton: true,
           confirmButtonColor: '#dc3545',
           confirmButtonText: 'Ya, Hapus',
-          cancelButtonText: 'Batal'
+          cancelButtonText: 'Batal',
+          customClass: {
+            popup: 'rounded-4 border-0 shadow-lg',
+            confirmButton: 'btn btn-danger fw-bold px-4 py-2 rounded-3 shadow-sm',
+            cancelButton: 'btn btn-secondary fw-bold px-4 py-2 rounded-3'
+          }
         }).then(async (confirmDelete) => {
           if (confirmDelete.isConfirmed) {
             Swal.fire({ title: 'Menghapus Laporan...', didOpen: () => Swal.showLoading() })
@@ -612,24 +650,42 @@ const openModalLapor = (item, field, sysVal) => {
 
   // Jika belum dilaporkan, tampilkan modal KIRIM LAPORAN baru menggunakan SweetAlert2 agar konsisten!
   Swal.fire({
-    title: 'Lapor Selisih / Topup',
+    title: `<span class="fw-bold" style="font-family: 'Outfit', sans-serif; color: #ffc107;">Lapor Selisih / Topup</span>`,
     html: `
-      <div class="text-start small">
-        <div class="alert alert-white border shadow-sm py-2 px-3 mb-3 bg-white">
-           <div class="fw-bold text-dark mb-1">${item.nama}</div>
-           <div class="small">Tipe: <b>Selisih ${field}</b></div>
-           <div class="small">Data Sistem: <b>${isSaldo ? formatRp(getNumericValue(sysVal)) : sysVal}</b></div>
+      <div class="text-start" style="font-family: 'Inter', sans-serif; font-size: 0.9rem;">
+        <div class="card border-0 shadow-sm mb-3 rounded-4" style="background: linear-gradient(135deg, #fff9e6 0%, #fff 100%); border-left: 5px solid #ffc107 !important;">
+          <div class="card-body p-3">
+            <h6 class="fw-bold text-dark mb-1" style="font-size: 0.95rem;">${item.nama}</h6>
+            <div class="text-muted small mb-2">${item.brand && item.brand !== '-' ? item.brand : 'PWA'} (${item.kategori})</div>
+            
+            <div class="d-flex justify-content-between align-items-center bg-white p-2 rounded-3 border">
+              <span class="small fw-semibold text-secondary">Tipe: <b>Selisih ${field}</b></span>
+              <span class="badge bg-warning text-dark px-2.5 py-1.5 rounded-pill small fw-bold" style="font-size: 0.75rem;">
+                Sistem: ${isSaldo ? formatRp(getNumericValue(sysVal)) : sysVal}
+              </span>
+            </div>
+          </div>
         </div>
+        
         <div class="mb-2">
-           <label class="form-label small fw-bold">Jumlah Real / Fisik Sebenarnya</label>
-           <input type="number" id="swal_new_real_val" class="form-control" placeholder="0">
+          <label class="form-label small fw-bold text-secondary mb-1">Jumlah Real / Fisik Sebenarnya</label>
+          <div class="input-group">
+            <span class="input-group-text bg-light border-end-0 rounded-start-3" style="border-color:#dee2e6;"><i class="fa-solid fa-calculator text-muted"></i></span>
+            <input type="number" id="swal_new_real_val" class="form-control border-start-0 rounded-end-3 py-2" style="border-color:#dee2e6;" placeholder="Masukkan stok riil di toko" autofocus>
+          </div>
         </div>
       </div>
     `,
     showCancelButton: true,
-    confirmButtonText: 'Kirim Laporan',
+    confirmButtonText: '<i class="fa-solid fa-paper-plane me-1"></i> Kirim Laporan',
     cancelButtonText: 'Batal',
     confirmButtonColor: '#ffc107',
+    cancelButtonColor: '#6c757d',
+    customClass: {
+      popup: 'rounded-4 border-0 shadow-lg',
+      confirmButton: 'btn btn-warning fw-bold px-4 py-2 rounded-3 text-dark shadow-sm',
+      cancelButton: 'btn btn-secondary fw-bold px-4 py-2 rounded-3'
+    },
     preConfirm: () => {
       const val = document.getElementById('swal_new_real_val').value
       if (val === '' || val === null) {
