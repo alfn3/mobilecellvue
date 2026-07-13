@@ -117,14 +117,22 @@
             </div>
             <div class="row g-1 align-items-end">
               <div class="col-3">
-                <div class="box-info box-awal cursor-pointer" @click="openModalLapor(item, 'Awal', item.awal)">
-                  <span class="label-tiny">AWAL</span>
+                <div 
+                  class="box-info box-awal cursor-pointer" 
+                  :class="{ 'reported-error': item.awalReported }"
+                  @click="openModalLapor(item, 'Awal', item.awal)"
+                >
+                  <span class="label-tiny">AWAL <i v-if="item.awalReported" class="fa-solid fa-triangle-exclamation text-danger"></i></span>
                   <span class="val-tiny">{{ item.awal }}</span>
                 </div>
               </div>
               <div class="col-3">
-                <div class="box-info box-topup cursor-pointer" @click="openModalLapor(item, 'Topup', item.topup)">
-                  <span class="label-tiny">TOPUP</span>
+                <div 
+                  class="box-info box-topup cursor-pointer" 
+                  :class="{ 'reported-error': item.topupReported }"
+                  @click="openModalLapor(item, 'Topup', item.topup)"
+                >
+                  <span class="label-tiny">TOPUP <i v-if="item.topupReported" class="fa-solid fa-triangle-exclamation text-danger"></i></span>
                   <span class="val-tiny">+{{ item.topup }}</span>
                 </div>
               </div>
@@ -162,14 +170,22 @@
             </div>
             <div class="row g-1 align-items-end">
               <div class="col-3">
-                <div class="box-info box-awal cursor-pointer" @click="openModalLapor(item, 'Awal', item.awal)">
-                  <span class="label-tiny">AWAL</span>
+                <div 
+                  class="box-info box-awal cursor-pointer" 
+                  :class="{ 'reported-error': item.awalReported }"
+                  @click="openModalLapor(item, 'Awal', item.awal)"
+                >
+                  <span class="label-tiny">AWAL <i v-if="item.awalReported" class="fa-solid fa-triangle-exclamation text-danger"></i></span>
                   <span class="val-tiny">{{ formatRp(getNumericValue(item.awal)) }}</span>
                 </div>
               </div>
               <div class="col-3">
-                <div class="box-info box-topup cursor-pointer" @click="openModalLapor(item, 'Topup', item.topup)">
-                  <span class="label-tiny">TOPUP</span>
+                <div 
+                  class="box-info box-topup cursor-pointer" 
+                  :class="{ 'reported-error': item.topupReported }"
+                  @click="openModalLapor(item, 'Topup', item.topup)"
+                >
+                  <span class="label-tiny">TOPUP <i v-if="item.topupReported" class="fa-solid fa-triangle-exclamation text-danger"></i></span>
                   <span class="val-tiny">+{{ formatRp(getNumericValue(item.topup)) }}</span>
                 </div>
               </div>
@@ -822,5 +838,11 @@ defineExpose({
 
 .modal.show {
   display: block;
+}
+
+.box-info.reported-error {
+  border: 1px solid #dc3545 !important;
+  background-color: #f8d7da !important;
+  color: #842029 !important;
 }
 </style>
