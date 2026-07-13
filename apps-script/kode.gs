@@ -8,7 +8,8 @@
 const CONFIG = {
   DB_ID: '1iz7B7MzBqIU4u72N4SyoeOA0NTA4EiNnYSIHE8hDpV0',
   STOK_ID: '1m3Kzzw0H84NVxBXmhIvcrQDQ6q2MmciTmbwV_cqKtJY',
-  FOTO_FOLDER_ID: '16nDd0ozjr6eR3JcKmyBEnB-16HDqa9jb'
+  FOTO_FOLDER_ID: '16nDd0ozjr6eR3JcKmyBEnB-16HDqa9jb',
+  NOTIF_EMAIL: 'alfiannurhuda77@gmail.com' // Email Anda untuk menerima laporan
 };
 
 function doGet(e) {
