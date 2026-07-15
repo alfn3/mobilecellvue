@@ -68,7 +68,10 @@
             <div class="card-body p-3 d-flex justify-content-between align-items-center">
               <div>
                 <div class="text-muted small text-uppercase fw-bold mb-1" style="font-size:0.65rem;">Total Penjualan</div>
-                <h3 class="fw-bold text-primary mb-0">{{ dashboardData.penjualan }}</h3>
+                <div v-if="refreshing" class="placeholder-glow" style="width: 120px; height: 38px; display: flex; align-items: center;">
+                  <span class="placeholder col-8 rounded bg-primary opacity-25" style="height: 1.8rem;"></span>
+                </div>
+                <h3 v-else class="fw-bold text-primary mb-0">{{ dashboardData.penjualan }}</h3>
               </div>
               <div class="rounded-circle bg-primary bg-opacity-10 text-primary d-flex align-items-center justify-content-center" style="width: 48px; height: 48px; font-size: 1.2rem;">
                 <i class="fa-solid fa-sack-dollar"></i>
@@ -81,7 +84,10 @@
           <div class="card border-0 shadow-sm rounded-4 bg-white h-100">
             <div class="card-body p-3">
               <span class="text-muted small fw-bold" style="font-size:0.65rem;">PENGELUARAN</span>
-              <h6 class="fw-bold text-danger mb-0 mt-1">{{ dashboardData.pengeluaran }}</h6>
+              <div v-if="refreshing" class="placeholder-glow mt-1" style="width: 85px; height: 24px; display: flex; align-items: center;">
+                <span class="placeholder col-10 rounded bg-danger opacity-25" style="height: 1.1rem;"></span>
+              </div>
+              <h6 v-else class="fw-bold text-danger mb-0 mt-1">{{ dashboardData.pengeluaran }}</h6>
             </div>
           </div>
         </div>
@@ -90,7 +96,10 @@
           <div class="card border-0 shadow-sm rounded-4 bg-white h-100">
             <div class="card-body p-3">
               <span class="text-muted small fw-bold" style="font-size:0.65rem;">BERSIH / SELISIH</span>
-              <h6 :class="selisihClass" class="fw-bold mb-0 mt-1">{{ dashboardData.selisih }}</h6>
+              <div v-if="refreshing" class="placeholder-glow mt-1" style="width: 85px; height: 24px; display: flex; align-items: center;">
+                <span class="placeholder col-10 rounded bg-success opacity-25" style="height: 1.1rem;"></span>
+              </div>
+              <h6 v-else :class="selisihClass" class="fw-bold mb-0 mt-1">{{ dashboardData.selisih }}</h6>
             </div>
           </div>
         </div>

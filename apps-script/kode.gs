@@ -360,8 +360,19 @@ function getStokMobile(toko) {
         const targetStoreName = sheetName.toLowerCase().trim();
         const originalStoreName = String(toko).toLowerCase().trim();
         
+        const todayStr = Utilities.formatDate(new Date(), Session.getScriptTimeZone(), "dd/MM/yyyy");
         for (let i = 1; i < dataLog.length; i++) {
           const row = dataLog[i];
+          
+          // Hanya muat laporan yang dibuat hari ini
+          let isToday = false;
+          if (row[0] instanceof Date) {
+            isToday = (Utilities.formatDate(row[0], Session.getScriptTimeZone(), "dd/MM/yyyy") === todayStr);
+          } else {
+            isToday = String(row[0]).includes(todayStr);
+          }
+          if (!isToday) continue;
+
           const logToko = String(row[2]).toLowerCase().trim();
           const logStatus = String(row[6]).toLowerCase().trim();
           const logKoreksi = row[7]; // Checkbox (boolean)
@@ -485,6 +496,25 @@ function simpanLaporanSalah(data) {
 
         sheet.appendRow([timestamp, data.user, data.toko, data.kategori, displayNama, `Lapor ${data.tipeMasalah}: ${data.nilaiBaru} (Sys:${data.nilaiLama})`, "Salah", false]);
         try { sheet.getRange(sheet.getLastRow(), 8).insertCheckboxes(); } catch(e){}
+
+        // Kirim email notifikasi ke Admin
+        if (CONFIG.NOTIF_EMAIL) {
+          try {
+            const subject = `[Laporan Selisih Stok] ${data.toko} - ${displayNama}`;
+            const body = `Halo Admin,\n\nLaporan selisih stok baru telah diterima:\n\n` +
+                         `• Konter: ${data.toko}\n` +
+                         `• Karyawan: ${data.user}\n` +
+                         `• Kategori: ${data.kategori}\n` +
+                         `• Produk: ${displayNama}\n` +
+                         `• Masalah: Selisih ${data.tipeMasalah}\n` +
+                         `• Nilai Sistem: ${data.nilaiLama}\n` +
+                         `• Nilai Fisik: ${data.nilaiBaru}\n` +
+                         `• Waktu Lapor: ${timestamp.replace("'", "")}\n\n` +
+                         `Silakan periksa lembar spreadsheet log Anda.`;
+            MailApp.sendEmail(CONFIG.NOTIF_EMAIL, subject, body);
+          } catch(err) {}
+        }
+
         return response(true, "Laporan Terkirim");
     } catch(e) { return response(false, e.toString()); }
 }

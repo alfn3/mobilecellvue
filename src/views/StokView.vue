@@ -2,7 +2,9 @@
   <div class="page-section animate-fade">
     <div class="sticky-top bg-light pb-2 sticky-header">
       <div class="d-flex justify-content-between align-items-center mb-2">
-        <h5 class="fw-bold mb-0 text-dark">Data Stok</h5>
+        <h5 class="fw-bold mb-0 text-dark">
+          {{ activeTab === 'pengeluaran' ? 'Data Pengeluaran' : (activeTab === 'uangcash' ? 'Uang Cash' : 'Data Stok') }}
+        </h5>
         <div class="d-flex gap-2 align-items-center">
           <span class="badge bg-primary rounded-pill px-3 py-2">
             <i class="fa-solid fa-shop me-1"></i> {{ store.user.store }}
@@ -30,22 +32,23 @@
         </div>
         <div>
           <button 
-            class="btn btn-filter shadow-sm rounded-circle border d-flex align-items-center justify-content-center" 
+            class="btn btn-filter shadow-sm rounded-pill border d-flex align-items-center gap-1.5 px-3 fw-bold btn-sm" 
             :class="isHideZero ? 'btn-primary text-white' : 'btn-light text-muted'"
             @click="isHideZero = !isHideZero"
-            style="width: 42px; height: 42px; transition: all 0.2s ease-in-out;"
+            style="height: 38px; font-size: 0.75rem; white-space: nowrap; transition: all 0.2s ease-in-out;"
           >
-            <i class="fa-solid" :class="isHideZero ? 'fa-eye-slash' : 'fa-layer-group'"></i>
+            <i class="fa-solid" :class="isHideZero ? 'fa-eye-slash' : 'fa-eye'"></i>
+            <span>{{ isHideZero ? 'Sembunyikan Kosong' : 'Tampilkan Semua' }}</span>
           </button>
         </div>
       </div>
 
       <!-- Categories Tabs -->
-      <div class="d-flex gap-2 overflow-auto pb-1 no-scrollbar mb-2">
+      <div v-if="activeTab === 'stok'" class="d-flex gap-2 w-100 pb-1 mb-2">
         <button 
           v-for="cat in categories" 
           :key="cat.id"
-          class="btn btn-xs rounded-pill px-3 filter-kat"
+          class="btn btn-xs rounded-pill px-2 filter-kat flex-fill"
           :class="currentKat === cat.id ? 'btn-dark' : 'btn-white border'"
           @click="currentKat = cat.id"
         >
@@ -56,21 +59,66 @@
 
     <!-- Stock Content -->
     <div class="row g-2 pb-5 mt-2">
-      <!-- Add Expense Button (Only when category is Pengeluaran) -->
-      <div v-if="currentKat === 'Pengeluaran'" class="col-12 mb-3">
-        <button 
-          class="btn btn-outline-danger w-100 border-2 border-dashed rounded-4 py-2 fw-bold" 
-          @click="handleTambahPengeluaran"
-        >
-          <i class="fa-solid fa-plus me-2"></i> Tambah Pengeluaran
-        </button>
-      </div>
+      <!-- Loading State (Skeleton Loaders) -->
+      <template v-if="loading">
+        <div v-for="i in 5" :key="i" class="col-12 mb-2">
+          <!-- Skeleton Barang / Saldo -->
+          <div v-if="currentKat !== 'Pengeluaran' && currentKat !== 'Uang'" class="card-stok-mini placeholder-glow border-start border-3" style="border-left-color: #dee2e6 !important;">
+            <div class="d-flex justify-content-between mb-2">
+              <div style="width: 70%;">
+                <span class="placeholder col-8 rounded mb-1" style="height: 1.1rem; display: block;"></span>
+                <div class="mt-2 d-flex gap-1">
+                  <span class="placeholder col-4 rounded" style="height: 0.8rem;"></span>
+                  <span class="placeholder col-3 rounded" style="height: 0.8rem;"></span>
+                </div>
+              </div>
+              <div style="width: 25%; text-align: right;">
+                <span class="placeholder col-6 rounded mb-1" style="height: 0.8rem; display: inline-block;"></span>
+                <span class="placeholder col-10 rounded mt-1" style="height: 1rem; display: inline-block;"></span>
+              </div>
+            </div>
+            <div class="row g-1 mt-3">
+              <div class="col-3">
+                <div class="placeholder rounded" style="height: 35px; width: 100%;"></div>
+              </div>
+              <div class="col-3">
+                <div class="placeholder rounded" style="height: 35px; width: 100%;"></div>
+              </div>
+              <div class="col-6 ps-2">
+                <div class="placeholder rounded" style="height: 35px; width: 100%;"></div>
+              </div>
+            </div>
+          </div>
 
-      <!-- Loading State -->
-      <div v-if="loading" class="col-12 text-center py-5">
-        <div class="spinner-border text-primary"></div>
-        <div class="text-muted mt-2 small">Memuat data...</div>
-      </div>
+          <!-- Skeleton Pengeluaran -->
+          <div v-else-if="currentKat === 'Pengeluaran'" class="card border-0 shadow-sm rounded-4 placeholder-glow" style="background: #e9ecef; min-height: 90px;">
+            <div class="card-body p-3 d-flex justify-content-between align-items-center">
+              <div style="width: 60%;">
+                <span class="placeholder col-8 rounded mb-2" style="height: 1rem; display: block;"></span>
+                <div class="d-flex gap-3 mt-2">
+                  <span class="placeholder col-2 rounded" style="height: 0.8rem;"></span>
+                  <span class="placeholder col-2 rounded" style="height: 0.8rem;"></span>
+                </div>
+              </div>
+              <div style="width: 40%; text-align: right;">
+                <span class="placeholder col-8 rounded" style="height: 1.5rem; display: inline-block;"></span>
+              </div>
+            </div>
+          </div>
+
+          <!-- Skeleton Uang Cash -->
+          <div v-else-if="currentKat === 'Uang'" class="card border-0 shadow-sm rounded-4 placeholder-glow" style="background: #e9ecef; min-height: 55px;">
+            <div class="card-body p-3 d-flex justify-content-between align-items-center">
+              <div style="width: 50%;">
+                <span class="placeholder col-10 rounded" style="height: 0.9rem; display: block;"></span>
+              </div>
+              <div style="width: 40%; text-align: right;">
+                <span class="placeholder col-8 rounded" style="height: 1.2rem; display: inline-block;"></span>
+              </div>
+            </div>
+          </div>
+        </div>
+      </template>
 
       <!-- Empty State -->
       <div v-else-if="filteredStock.length === 0" class="col-12 text-center py-5 text-muted small">
@@ -106,7 +154,7 @@
                   </span>
                 </div>
               </div>
-              <div class="text-end text-nowrap">
+              <div class="text-end text-nowrap" v-show="getTerjualBarang(item) > 0">
                 <div class="small text-muted fw-bold" style="font-size: 0.85rem;">
                   Terjual: <span class="text-dark">{{ getTerjualBarang(item) }}</span>
                 </div>
@@ -147,6 +195,7 @@
                 </div>
               </div>
               <div class="col-6 ps-2">
+                <span class="label-tiny text-secondary fw-semibold mb-1 d-block text-end pe-1">SISA</span>
                 <input 
                   type="number" 
                   class="input-sisa-mini" 
@@ -171,7 +220,7 @@
                   <span class="badge bg-secondary text-white rounded-pill" style="font-size: 0.6rem;">Elektrik</span>
                 </div>
               </div>
-              <div class="text-end text-nowrap">
+              <div class="text-end text-nowrap" v-show="getTerjualSaldo(item) > 0">
                 <div class="small text-muted fw-bold" style="font-size: 0.65rem;">Nominal Terjual</div>
                 <div class="fw-bold text-success" style="font-size: 0.75rem;">
                   {{ formatRp(getTerjualSaldo(item)) }}
@@ -210,6 +259,7 @@
                 </div>
               </div>
               <div class="col-6 ps-2">
+                <span class="label-tiny text-secondary fw-semibold mb-1 d-block text-end pe-1">SISA</span>
                 <input 
                   type="text" 
                   inputmode="numeric" 
@@ -223,7 +273,7 @@
 
           <!-- 3. Card Uang Cash (Info) -->
           <div 
-            v-else-if="item.tipe === 'info'" 
+            v-else-if="item.tipe === 'info' && isCashVisible(item)" 
             class="card border-0 shadow-sm rounded-4 position-relative overflow-hidden mb-2 card-money"
             :class="getMoneyCfg(item).text || 'text-white'"
             :style="{ background: getMoneyCfg(item).grad }"
@@ -275,6 +325,16 @@
       </template>
     </div>
 
+    <!-- Add Cash Denomination Button (Only when activeTab is 'uangcash') -->
+    <div v-if="activeTab === 'uangcash' && hiddenCashItems.length > 0" class="col-12 text-center mt-2 mb-4 animate-fade">
+      <button 
+        class="btn btn-outline-primary rounded-pill px-4 py-2 small shadow-sm fw-bold border-2"
+        @click="showAddCashModal"
+      >
+        <i class="fa-solid fa-plus me-1"></i> Tambah Kolom Uang
+      </button>
+    </div>
+
     <!-- Floating Action Button (FAB) -->
     <div 
       v-if="changedCount > 0" 
@@ -285,28 +345,56 @@
       <div class="fab-badge">{{ changedCount }}</div>
     </div>
 
+    <!-- Floating Action Button (FAB) for Tambah Pengeluaran -->
+    <div 
+      v-if="activeTab === 'pengeluaran'" 
+      class="fab-add-expense" 
+      :class="{ 'shifted': changedCount > 0 }"
+      @click="handleTambahPengeluaran"
+    >
+      <button class="btn-fab bg-warning text-dark">
+        <i class="fa-solid fa-plus"></i>
+      </button>
+    </div>
+
   </div>
 </template>
 
 <script setup>
-import { ref, computed, onMounted } from 'vue'
+import { ref, computed, onMounted, watch } from 'vue'
 import { store, changedKeys } from '../store'
 import { callApi } from '../services/api'
 import Swal from 'sweetalert2'
 
+const props = defineProps({
+  activeTab: {
+    type: String,
+    default: 'stok'
+  }
+})
+
 const loading = ref(false)
 const searchQuery = ref('')
 const isHideZero = ref(false)
-const currentKat = ref('Semua')
+const currentKat = ref('Perdana')
+
+watch(() => props.activeTab, (newTab) => {
+  if (newTab === 'pengeluaran') {
+    currentKat.value = 'Pengeluaran'
+  } else if (newTab === 'uangcash') {
+    currentKat.value = 'Uang'
+  } else {
+    if (currentKat.value === 'Pengeluaran' || currentKat.value === 'Uang') {
+      currentKat.value = 'Perdana'
+    }
+  }
+}, { immediate: true })
 
 const categories = [
-  { id: 'Semua', label: 'Semua' },
   { id: 'Perdana', label: 'Perdana' },
   { id: 'Voucher', label: 'Voucher' },
   { id: 'Aksesoris', label: 'Acc' },
-  { id: 'Elektrik', label: 'Elektrik' },
-  { id: 'Pengeluaran', label: 'Pengeluaran' },
-  { id: 'Uang', label: 'Uang Cash' }
+  { id: 'Elektrik', label: 'Elektrik' }
 ]
 
 const moneyColors = [
@@ -334,8 +422,7 @@ const filteredStock = computed(() => {
     } else if (currentKat.value === 'Uang') {
       if (item.tipe !== 'info') return false
     } else {
-      const matchCat = (currentKat.value === 'Semua') || 
-                       (item.kategori === currentKat.value) || 
+      const matchCat = (item.kategori === currentKat.value) || 
                        (item.grup === currentKat.value)
       if (!matchCat) return false
     }
@@ -389,6 +476,59 @@ const getTerjualSaldo = (item) => {
   return (awal + topup) - sisa
 }
 
+const revealedCash = ref([])
+
+const isCashVisible = (item) => {
+  const localVal = getLocalValue(item)
+  if (getNumericValue(localVal) > 0) return true
+  
+  const cfg = getMoneyCfg(item)
+  if (revealedCash.value.includes(cfg.label)) return true
+  
+  return false
+}
+
+const hiddenCashItems = computed(() => {
+  if (props.activeTab !== 'uangcash') return []
+  return store.stockCache.filter(item => {
+    if (item.tipe !== 'info') return false
+    return !isCashVisible(item)
+  })
+})
+
+const showAddCashModal = () => {
+  const inputOptions = {}
+  hiddenCashItems.value.forEach(item => {
+    const cfg = getMoneyCfg(item)
+    inputOptions[cfg.label] = cfg.label
+  })
+
+  Swal.fire({
+    title: 'Tambah Kolom Uang Cash',
+    input: 'select',
+    inputOptions: inputOptions,
+    inputPlaceholder: 'Pilih denominasi...',
+    showCancelButton: true,
+    confirmButtonText: 'Tampilkan',
+    cancelButtonText: 'Batal',
+    confirmButtonColor: '#0d6efd',
+    customClass: {
+      popup: 'rounded-4 border-0 shadow-lg',
+      confirmButton: 'btn btn-primary fw-bold px-3 py-2 rounded-3 me-2',
+      cancelButton: 'btn btn-secondary fw-bold px-3 py-2 rounded-3'
+    },
+    inputValidator: (value) => {
+      if (!value) {
+        return 'Anda harus memilih salah satu'
+      }
+    }
+  }).then((result) => {
+    if (result.isConfirmed && result.value) {
+      revealedCash.value.push(result.value)
+    }
+  })
+}
+
 const getMoneyCfg = (item) => {
   return moneyColors[item.urut] || { grad: "linear-gradient(135deg,#555,#777)", icon: "fa-wallet", label: item.nama }
 }
@@ -434,6 +574,7 @@ const loadStock = async () => {
   loading.value = false
   
   if (res.success) {
+    revealedCash.value = []
     const formatted = res.data.map((item, index) => {
       const n = (item.nama || "").toLowerCase()
       const k = (item.kategori || "").toLowerCase()
@@ -737,15 +878,26 @@ const handleTambahPengeluaran = () => {
   Swal.fire({
     title: 'Tambah Pengeluaran',
     html: `
-      <input type="number" id="peng_nom" class="form-control mb-2" placeholder="Nominal (Rp)">
+      <input type="text" inputmode="numeric" id="peng_nom" class="form-control mb-2" placeholder="Nominal (Rp)">
       <input type="text" id="peng_ket" class="form-control" placeholder="Keterangan">
     `,
     showCancelButton: true,
     confirmButtonText: 'Simpan',
     cancelButtonText: 'Batal',
     focusConfirm: false,
+    didOpen: () => {
+      const input = document.getElementById('peng_nom')
+      if (input) {
+        input.addEventListener('input', (e) => {
+          let value = e.target.value.replace(/\D/g, '')
+          let num = parseInt(value) || 0
+          e.target.value = num > 0 ? 'Rp ' + new Intl.NumberFormat('id-ID').format(num) : ''
+        })
+      }
+    },
     preConfirm: () => {
-      const nominal = document.getElementById('peng_nom').value
+      const valStr = document.getElementById('peng_nom').value
+      const nominal = parseInt(valStr.replace(/\D/g, '')) || 0
       const ket = document.getElementById('peng_ket').value
       if (!nominal || !ket) {
         Swal.showValidationMessage('Nominal dan keterangan wajib diisi')
@@ -779,14 +931,30 @@ const handleEditPengeluaran = (item) => {
   Swal.fire({
     title: 'Edit Pengeluaran',
     html: `
-      <input type="number" id="edit_peng_nom" class="form-control mb-2" value="${price}">
+      <input type="text" inputmode="numeric" id="edit_peng_nom" class="form-control mb-2" value="${price}">
       <input type="text" id="edit_peng_ket" class="form-control" value="${item.nama}">
     `,
     showCancelButton: true,
     confirmButtonText: 'Update',
     cancelButtonText: 'Batal',
+    didOpen: () => {
+      const input = document.getElementById('edit_peng_nom')
+      if (input) {
+        // Format initial value
+        let val = input.value.replace(/\D/g, '')
+        let n = parseInt(val) || 0
+        input.value = n > 0 ? 'Rp ' + new Intl.NumberFormat('id-ID').format(n) : ''
+
+        input.addEventListener('input', (e) => {
+          let value = e.target.value.replace(/\D/g, '')
+          let num = parseInt(value) || 0
+          e.target.value = num > 0 ? 'Rp ' + new Intl.NumberFormat('id-ID').format(num) : ''
+        })
+      }
+    },
     preConfirm: () => {
-      const nominal = document.getElementById('edit_peng_nom').value
+      const valStr = document.getElementById('edit_peng_nom').value
+      const nominal = parseInt(valStr.replace(/\D/g, '')) || 0
       const ket = document.getElementById('edit_peng_ket').value
       if (!nominal || !ket) {
         Swal.showValidationMessage('Nominal dan keterangan wajib diisi')
@@ -862,7 +1030,7 @@ defineExpose({
 
 .filter-kat {
   font-size: 0.75rem;
-  flex: 0 0 auto;
+  flex: 1 1 0%;
 }
 
 .card-stok-mini { 
@@ -1004,5 +1172,17 @@ defineExpose({
   border: 1px solid #dc3545 !important;
   background-color: #f8d7da !important;
   color: #842029 !important;
+}
+
+.fab-add-expense {
+  position: fixed;
+  bottom: 85px;
+  right: 15px;
+  z-index: 1045;
+  transition: bottom 0.2s ease-in-out;
+}
+
+.fab-add-expense.shifted {
+  bottom: 155px;
 }
 </style>

@@ -12,7 +12,11 @@
             <i class="fa-solid fa-layer-group fs-4"></i>
             <span class="fw-bold fs-5">MobileCell</span>
           </div>
-          <div class="small fw-bold opacity-75 clock-text">{{ digitalClock }}</div>
+          <div class="small fw-bold opacity-75 clock-text d-flex gap-2 align-items-center">
+            <span>{{ currentDateStr }}</span>
+            <span class="opacity-50">&bull;</span>
+            <span>{{ digitalClock }}</span>
+          </div>
         </div>
       </nav>
 
@@ -23,7 +27,8 @@
           @refresh-stock="triggerStockRefresh" 
         />
         <StokView 
-          v-show="currentTab === 'stok'" 
+          v-show="currentTab === 'stok' || currentTab === 'pengeluaran' || currentTab === 'uangcash'" 
+          :active-tab="currentTab"
           ref="stokViewRef" 
         />
         <AkunView 
@@ -39,8 +44,8 @@
             :class="{ active: currentTab === 'home' }" 
             @click="navTo('home')"
           >
-            <i class="fa-solid fa-fingerprint fs-4"></i>
-            <span>Absen</span>
+            <i class="fa-solid fa-house fs-4"></i>
+            <span>Home</span>
           </button>
           
           <button 
@@ -55,6 +60,34 @@
           >
             <i class="fa-solid fs-4" :class="store.status.isAbsen ? 'fa-box-open' : 'fa-lock'"></i>
             <span>Stok</span>
+          </button>
+
+          <button 
+            class="nav-item-mobile btn-reset" 
+            :class="{ active: currentTab === 'pengeluaran' }" 
+            :disabled="!store.status.isAbsen"
+            :style="{ 
+              opacity: store.status.isAbsen ? '1' : '0.5', 
+              pointerEvents: store.status.isAbsen ? 'auto' : 'none' 
+            }"
+            @click="navTo('pengeluaran')"
+          >
+            <i class="fa-solid fs-4" :class="store.status.isAbsen ? 'fa-wallet' : 'fa-lock'"></i>
+            <span>Pengeluaran</span>
+          </button>
+
+          <button 
+            class="nav-item-mobile btn-reset" 
+            :class="{ active: currentTab === 'uangcash' }" 
+            :disabled="!store.status.isAbsen"
+            :style="{ 
+              opacity: store.status.isAbsen ? '1' : '0.5', 
+              pointerEvents: store.status.isAbsen ? 'auto' : 'none' 
+            }"
+            @click="navTo('uangcash')"
+          >
+            <i class="fa-solid fs-4" :class="store.status.isAbsen ? 'fa-money-bill-wave' : 'fa-lock'"></i>
+            <span>Uang Cash</span>
           </button>
           
           <button 
@@ -78,6 +111,7 @@ import LoginView from './views/LoginView.vue'
 import HomeView from './views/HomeView.vue'
 import StokView from './views/StokView.vue'
 import AkunView from './views/AkunView.vue'
+import Swal from 'sweetalert2'
 
 const currentTab = ref('home')
 const digitalClock = ref('00:00')
@@ -85,10 +119,39 @@ const stokViewRef = ref(null)
 
 let clockInterval = null
 
+const currentDateStr = computed(() => {
+  return new Date().toLocaleDateString('id-ID', { 
+    weekday: 'short', 
+    day: 'numeric', 
+    month: 'short' 
+  })
+})
+
 const isNotLoggedIn = computed(() => {
   // Check if store user email is a placeholder/empty
   return !store.user.email || store.user.name === 'Guest'
 })
+
+const checkDayChange = () => {
+  if (isNotLoggedIn.value) return
+  
+  const lastLoginDate = localStorage.getItem('LOGIN_DATE')
+  if (!lastLoginDate) return
+  
+  const today = new Date().toDateString()
+  if (lastLoginDate !== today) {
+    store.logout()
+    Swal.fire({
+      icon: 'info',
+      title: 'Sesi Berakhir',
+      text: 'Hari telah berganti. Sesi Anda telah berakhir dan sistem otomatis log out.',
+      confirmButtonText: 'OK',
+      allowOutsideClick: false
+    }).then(() => {
+      location.reload()
+    })
+  }
+}
 
 const updateClock = () => {
   const d = new Date()
@@ -96,11 +159,12 @@ const updateClock = () => {
     hour: '2-digit', 
     minute: '2-digit' 
   })
+  checkDayChange()
 }
 
 const navTo = (tab) => {
-  if (tab === 'stok' && !store.status.isAbsen) {
-    return // Block access to stock if not checked-in
+  if ((tab === 'stok' || tab === 'pengeluaran' || tab === 'uangcash') && !store.status.isAbsen) {
+    return // Block access if not checked-in
   }
   currentTab.value = tab
 }

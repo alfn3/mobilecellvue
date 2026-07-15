@@ -25,6 +25,7 @@ export const store = reactive({
     localStorage.setItem('STORE_NAME', this.user.store);
     localStorage.setItem('USER_SHIFT', this.user.shift);
     localStorage.setItem('USER_EMAIL', this.user.email);
+    localStorage.setItem('LOGIN_DATE', new Date().toDateString());
   },
   
   setStatus(status) {
@@ -63,6 +64,7 @@ export const store = reactive({
     localStorage.removeItem('USER_EMAIL');
     localStorage.removeItem('IS_ABSEN');
     localStorage.removeItem('JAM_MASUK');
+    localStorage.removeItem('LOGIN_DATE');
   }
 })
 
