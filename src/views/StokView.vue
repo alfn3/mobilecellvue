@@ -19,7 +19,7 @@
         </div>
       </div>
       
-      <!-- Search & Filters -->
+      <!-- Search & Filters (hanya di stok) -->
       <div class="d-flex align-items-center gap-2 px-1 mb-3">
         <div class="position-relative shadow-sm rounded-pill bg-white flex-grow-1">
           <input 
@@ -30,9 +30,10 @@
           >
           <i class="fa-solid fa-magnifying-glass position-absolute top-50 end-0 translate-middle-y me-3 text-muted"></i>
         </div>
-        <div>
+        <!-- Tombol filter stok kosong hanya di tab stok -->
+        <div v-if="activeTab === 'stok'">
           <button 
-            class="btn btn-filter shadow-sm rounded-pill border d-flex align-items-center gap-1.5 px-3 fw-bold btn-sm" 
+            class="btn btn-filter shadow-sm rounded-pill border d-flex align-items-center gap-1 px-3 fw-bold btn-sm" 
             :class="isHideZero ? 'btn-primary text-white' : 'btn-light text-muted'"
             @click="isHideZero = !isHideZero"
             style="height: 38px; font-size: 0.75rem; white-space: nowrap; transition: all 0.2s ease-in-out;"
@@ -41,9 +42,15 @@
             <span>{{ isHideZero ? 'Sembunyikan Kosong' : 'Tampilkan Semua' }}</span>
           </button>
         </div>
+        <!-- Indikator antrian pengeluaran belum disimpan -->
+        <div v-if="activeTab === 'pengeluaran' && pendingExpenses.length > 0">
+          <span class="badge bg-warning text-dark rounded-pill px-3 py-2 fw-bold small">
+            {{ pendingExpenses.length }} belum disimpan
+          </span>
+        </div>
       </div>
 
-      <!-- Categories Tabs -->
+      <!-- Categories Tabs (hanya di stok) -->
       <div v-if="activeTab === 'stok'" class="d-flex gap-2 w-100 pb-1 mb-2">
         <button 
           v-for="cat in categories" 
@@ -59,74 +66,78 @@
 
     <!-- Stock Content -->
     <div class="row g-2 pb-5 mt-2">
-      <!-- Loading State (Skeleton Loaders) -->
+
+      <!-- Skeleton Loading State -->
       <template v-if="loading">
-        <div v-for="i in 5" :key="i" class="col-12 mb-2">
-          <!-- Skeleton Barang / Saldo -->
-          <div v-if="currentKat !== 'Pengeluaran' && currentKat !== 'Uang'" class="card-stok-mini placeholder-glow border-start border-3" style="border-left-color: #dee2e6 !important;">
+        <div v-for="n in 6" :key="'skel-' + n" class="col-12">
+          <div class="card-skeleton">
             <div class="d-flex justify-content-between mb-2">
-              <div style="width: 70%;">
-                <span class="placeholder col-8 rounded mb-1" style="height: 1.1rem; display: block;"></span>
-                <div class="mt-2 d-flex gap-1">
-                  <span class="placeholder col-4 rounded" style="height: 0.8rem;"></span>
-                  <span class="placeholder col-3 rounded" style="height: 0.8rem;"></span>
-                </div>
+              <div style="width: 60%">
+                <div class="skel-line skel-title mb-1"></div>
+                <div class="skel-line skel-badge"></div>
               </div>
-              <div style="width: 25%; text-align: right;">
-                <span class="placeholder col-6 rounded mb-1" style="height: 0.8rem; display: inline-block;"></span>
-                <span class="placeholder col-10 rounded mt-1" style="height: 1rem; display: inline-block;"></span>
+              <div class="text-end" style="width: 30%">
+                <div class="skel-line skel-val mb-1 ms-auto"></div>
+                <div class="skel-line skel-val-sm ms-auto"></div>
               </div>
             </div>
-            <div class="row g-1 mt-3">
-              <div class="col-3">
-                <div class="placeholder rounded" style="height: 35px; width: 100%;"></div>
-              </div>
-              <div class="col-3">
-                <div class="placeholder rounded" style="height: 35px; width: 100%;"></div>
-              </div>
-              <div class="col-6 ps-2">
-                <div class="placeholder rounded" style="height: 35px; width: 100%;"></div>
-              </div>
-            </div>
-          </div>
-
-          <!-- Skeleton Pengeluaran -->
-          <div v-else-if="currentKat === 'Pengeluaran'" class="card border-0 shadow-sm rounded-4 placeholder-glow" style="background: #e9ecef; min-height: 90px;">
-            <div class="card-body p-3 d-flex justify-content-between align-items-center">
-              <div style="width: 60%;">
-                <span class="placeholder col-8 rounded mb-2" style="height: 1rem; display: block;"></span>
-                <div class="d-flex gap-3 mt-2">
-                  <span class="placeholder col-2 rounded" style="height: 0.8rem;"></span>
-                  <span class="placeholder col-2 rounded" style="height: 0.8rem;"></span>
-                </div>
-              </div>
-              <div style="width: 40%; text-align: right;">
-                <span class="placeholder col-8 rounded" style="height: 1.5rem; display: inline-block;"></span>
-              </div>
-            </div>
-          </div>
-
-          <!-- Skeleton Uang Cash -->
-          <div v-else-if="currentKat === 'Uang'" class="card border-0 shadow-sm rounded-4 placeholder-glow" style="background: #e9ecef; min-height: 55px;">
-            <div class="card-body p-3 d-flex justify-content-between align-items-center">
-              <div style="width: 50%;">
-                <span class="placeholder col-10 rounded" style="height: 0.9rem; display: block;"></span>
-              </div>
-              <div style="width: 40%; text-align: right;">
-                <span class="placeholder col-8 rounded" style="height: 1.2rem; display: inline-block;"></span>
-              </div>
+            <div class="row g-1 align-items-end">
+              <div class="col-3"><div class="skel-box"></div></div>
+              <div class="col-3"><div class="skel-box"></div></div>
+              <div class="col-6"><div class="skel-box skel-box-tall"></div></div>
             </div>
           </div>
         </div>
       </template>
 
       <!-- Empty State -->
-      <div v-else-if="filteredStock.length === 0" class="col-12 text-center py-5 text-muted small">
+      <div v-else-if="filteredStock.length === 0 && pendingExpenses.length === 0" class="col-12 text-center py-5 text-muted small">
         Data tidak ditemukan.
       </div>
 
       <!-- Render Stock Cards -->
       <template v-else>
+
+        <!-- Pending Expenses (antrian yang belum disimpan) -->
+        <template v-if="activeTab === 'pengeluaran' && pendingExpenses.length > 0">
+          <div class="col-12 mb-1">
+            <div class="small text-muted fw-semibold mb-1 px-1">
+              <i class="fa-solid fa-clock me-1 text-warning"></i> Antrian Belum Disimpan
+            </div>
+          </div>
+          <div 
+            v-for="(pending, idx) in pendingExpenses" 
+            :key="'pending-' + idx" 
+            class="col-12"
+          >
+            <div 
+              class="card border-0 shadow-sm rounded-4 mb-2"
+              :class="pending.nominal < 0 ? 'card-expense-minus' : 'card-expense-plus'"
+            >
+              <div class="card-body p-3 d-flex justify-content-between align-items-center">
+                <div style="width: 60%">
+                  <div class="d-flex align-items-center gap-2 mb-1">
+                  <span class="badge rounded-pill" :class="pending.nominal < 0 ? 'bg-danger' : 'bg-white text-primary'" style="font-size: 0.6rem;">
+                    {{ pending.nominal < 0 ? 'Pengembalian' : 'Pengeluaran' }}
+                  </span>
+                    <i class="fa-solid fa-hourglass-half text-white opacity-75" style="font-size: 0.75rem;"></i>
+                  </div>
+                  <h6 class="fw-bold mb-0 text-white" style="font-size: 0.9rem;">{{ pending.ket }}</h6>
+                </div>
+                <div class="d-flex align-items-center gap-3">
+                  <div class="fw-bold text-white text-end" style="font-size: 1.1rem;">
+                    {{ formatRp(pending.nominal) }}
+                  </div>
+                  <i class="fa-solid fa-trash text-white opacity-75 cursor-pointer" style="font-size: 0.9rem;" @click="removePending(idx)"></i>
+                </div>
+              </div>
+            </div>
+          </div>
+          <div class="col-12 mb-2">
+            <hr class="text-muted opacity-25">
+          </div>
+        </template>
+
         <div 
           v-for="item in filteredStock" 
           :key="getItemKey(item)" 
@@ -296,28 +307,29 @@
             </div>
           </div>
 
-          <!-- 4. Card Pengeluaran (Uang) -->
+          <!-- 4. Card Pengeluaran (Uang) — server data -->
           <div 
             v-else-if="item.tipe === 'uang'" 
-            class="card border-0 shadow-sm rounded-4 text-white mb-2" 
-            style="background: linear-gradient(135deg, #cb2d3e, #ef473a); min-height: 90px;"
+            class="card border-0 shadow-sm rounded-4 mb-2"
+            :class="getNumericValue(item.harga) < 0 ? 'card-expense-minus' : 'card-expense-plus'"
           >
             <div class="card-body p-3 d-flex justify-content-between align-items-center">
               <div style="width: 60%">
-                <h6 class="fw-bold mb-1" style="font-size: 0.9rem;">{{ item.nama }}</h6>
-                <div class="d-flex gap-3 mt-2">
+                <div class="d-flex align-items-center gap-2 mb-1">
+                  <span class="badge rounded-pill" :class="getNumericValue(item.harga) < 0 ? 'bg-danger' : 'bg-white text-primary'" style="font-size: 0.6rem;">
+                    {{ getNumericValue(item.harga) < 0 ? 'Pengembalian' : 'Pengeluaran' }}
+                  </span>
+                </div>
+                <h6 class="fw-bold mb-1 text-white" style="font-size: 0.9rem;">{{ item.nama }}</h6>
+                <div class="d-flex gap-3 mt-1">
                   <i class="fa-solid fa-pen-to-square text-white opacity-75 cursor-pointer" @click="handleEditPengeluaran(item)"></i>
                   <i class="fa-solid fa-trash text-white opacity-75 cursor-pointer" @click="handleHapusPengeluaran(item)"></i>
                 </div>
               </div>
               <div style="width: 40%">
-                <input 
-                  type="text" 
-                  class="form-control bg-transparent border-0 p-0 fw-bold text-end text-white" 
-                  :value="formatRp(getLocalValue(item))"
-                  readonly 
-                  style="font-size: 1.3rem;"
-                >
+                <div class="fw-bold text-white text-end" style="font-size: 1.2rem;">
+                  {{ formatRp(getNumericValue(item.harga)) }}
+                </div>
               </div>
             </div>
           </div>
@@ -325,36 +337,49 @@
       </template>
     </div>
 
-    <!-- Add Cash Denomination Button (Only when activeTab is 'uangcash') -->
-    <div v-if="activeTab === 'uangcash' && hiddenCashItems.length > 0" class="col-12 text-center mt-2 mb-4 animate-fade">
-      <button 
-        class="btn btn-outline-primary rounded-pill px-4 py-2 small shadow-sm fw-bold border-2"
-        @click="showAddCashModal"
+    <!-- ============== FAB GROUP (sejajar di atas icon Akun) ============== -->
+    <div class="fab-group">
+      <!-- FAB Save Batch Stok -->
+      <div 
+        v-if="changedCount > 0" 
+        class="fab-item position-relative"
+        @click="saveBatch"
+        title="Simpan Perubahan Stok"
       >
-        <i class="fa-solid fa-plus me-1"></i> Tambah Kolom Uang
-      </button>
-    </div>
+        <button class="btn-fab btn-fab-blue"><i class="fa-solid fa-floppy-disk"></i></button>
+        <div class="fab-badge">{{ changedCount }}</div>
+      </div>
 
-    <!-- Floating Action Button (FAB) -->
-    <div 
-      v-if="changedCount > 0" 
-      class="fab-container" 
-      @click="saveBatch"
-    >
-      <button class="btn-fab"><i class="fa-solid fa-floppy-disk"></i></button>
-      <div class="fab-badge">{{ changedCount }}</div>
-    </div>
+      <!-- FAB Save Batch Pengeluaran -->
+      <div 
+        v-if="activeTab === 'pengeluaran' && pendingExpenses.length > 0"
+        class="fab-item position-relative"
+        @click="saveBatchPengeluaran"
+        title="Simpan Antrian Pengeluaran"
+      >
+        <button class="btn-fab btn-fab-green"><i class="fa-solid fa-cloud-arrow-up"></i></button>
+        <div class="fab-badge bg-success">{{ pendingExpenses.length }}</div>
+      </div>
 
-    <!-- Floating Action Button (FAB) for Tambah Pengeluaran -->
-    <div 
-      v-if="activeTab === 'pengeluaran'" 
-      class="fab-add-expense" 
-      :class="{ 'shifted': changedCount > 0 }"
-      @click="handleTambahPengeluaran"
-    >
-      <button class="btn-fab bg-warning text-dark">
-        <i class="fa-solid fa-plus"></i>
-      </button>
+      <!-- FAB Tambah Pengeluaran -->
+      <div 
+        v-if="activeTab === 'pengeluaran'"
+        class="fab-item"
+        @click="handleTambahPengeluaran"
+        title="Tambah Pengeluaran"
+      >
+        <button class="btn-fab btn-fab-yellow"><i class="fa-solid fa-plus"></i></button>
+      </div>
+
+      <!-- FAB Tambah Kolom Uang Cash -->
+      <div 
+        v-if="activeTab === 'uangcash' && hiddenCashItems.length > 0"
+        class="fab-item"
+        @click="showAddCashModal"
+        title="Tambah Kolom Uang"
+      >
+        <button class="btn-fab btn-fab-teal"><i class="fa-solid fa-plus"></i></button>
+      </div>
     </div>
 
   </div>
@@ -377,6 +402,9 @@ const loading = ref(false)
 const searchQuery = ref('')
 const isHideZero = ref(false)
 const currentKat = ref('Perdana')
+
+// Antrian pengeluaran lokal (belum dikirim ke server)
+const pendingExpenses = ref([])
 
 watch(() => props.activeTab, (newTab) => {
   if (newTab === 'pengeluaran') {
@@ -431,7 +459,7 @@ const filteredStock = computed(() => {
     const matchSearch = item.nama.toLowerCase().includes(q)
     if (!matchSearch) return false
     
-    // 3. Filter Zero Stock Toggles
+    // 3. Filter Zero Stock Toggles (hanya untuk stok)
     if (isHideZero.value && item.tipe === 'barang') {
       const awalVal = getNumericValue(item.awal)
       const topupVal = getNumericValue(item.topup)
@@ -481,10 +509,8 @@ const revealedCash = ref([])
 const isCashVisible = (item) => {
   const localVal = getLocalValue(item)
   if (getNumericValue(localVal) > 0) return true
-  
   const cfg = getMoneyCfg(item)
   if (revealedCash.value.includes(cfg.label)) return true
-  
   return false
 }
 
@@ -502,11 +528,10 @@ const showAddCashModal = () => {
     const cfg = getMoneyCfg(item)
     inputOptions[cfg.label] = cfg.label
   })
-
   Swal.fire({
     title: 'Tambah Kolom Uang Cash',
     input: 'select',
-    inputOptions: inputOptions,
+    inputOptions,
     inputPlaceholder: 'Pilih denominasi...',
     showCancelButton: true,
     confirmButtonText: 'Tampilkan',
@@ -517,11 +542,7 @@ const showAddCashModal = () => {
       confirmButton: 'btn btn-primary fw-bold px-3 py-2 rounded-3 me-2',
       cancelButton: 'btn btn-secondary fw-bold px-3 py-2 rounded-3'
     },
-    inputValidator: (value) => {
-      if (!value) {
-        return 'Anda harus memilih salah satu'
-      }
-    }
+    inputValidator: (value) => { if (!value) return 'Pilih salah satu' }
   }).then((result) => {
     if (result.isConfirmed && result.value) {
       revealedCash.value.push(result.value)
@@ -549,6 +570,16 @@ const formatRp = (num) => {
   const isNeg = num < 0
   const absNum = Math.abs(num)
   const formatted = 'Rp ' + new Intl.NumberFormat('id-ID').format(absNum)
+  return isNeg ? '- ' + formatted : formatted
+}
+
+// Format angka untuk tampilan input rupiah (support minus)
+const formatRpInput = (rawStr) => {
+  const isNeg = rawStr.trim().startsWith('-')
+  const digits = rawStr.replace(/\D/g, '')
+  const num = parseInt(digits) || 0
+  if (num === 0) return ''
+  const formatted = 'Rp ' + new Intl.NumberFormat('id-ID').format(num)
   return isNeg ? '- ' + formatted : formatted
 }
 
@@ -600,7 +631,7 @@ const loadStock = async () => {
   }
 }
 
-// Save Changes
+// Save Changes Stok
 const saveBatch = () => {
   if (changedCount.value === 0) return
   
@@ -628,7 +659,6 @@ const saveBatch = () => {
   }).then(async (result) => {
     if (result.isConfirmed) {
       Swal.fire({ title: 'Menyimpan...', didOpen: () => Swal.showLoading() })
-      
       const res = await callApi('batchUpdateStok', {
         toko: store.user.store,
         user: store.user.name,
@@ -647,6 +677,52 @@ const saveBatch = () => {
   })
 }
 
+// Save Batch Pengeluaran (kirim semua antrian ke server)
+const saveBatchPengeluaran = () => {
+  if (pendingExpenses.value.length === 0) return
+
+  Swal.fire({
+    title: 'Simpan Pengeluaran?',
+    text: `Mengirim ${pendingExpenses.value.length} entri pengeluaran ke server.`,
+    icon: 'question',
+    showCancelButton: true,
+    confirmButtonText: 'Ya, Simpan',
+    cancelButtonText: 'Batal',
+    confirmButtonColor: '#198754'
+  }).then(async (result) => {
+    if (!result.isConfirmed) return
+
+    Swal.fire({ title: 'Menyimpan...', didOpen: () => Swal.showLoading() })
+    let successCount = 0
+    let failCount = 0
+
+    for (const expense of pendingExpenses.value) {
+      const res = await callApi('tambahPengeluaran', {
+        toko: store.user.store,
+        nominal: expense.nominal,
+        ket: expense.ket
+      })
+      if (res.success) successCount++
+      else failCount++
+    }
+    
+    pendingExpenses.value = []
+    await loadStock()
+    Swal.close()
+
+    if (failCount === 0) {
+      Swal.fire('Sukses', `${successCount} pengeluaran berhasil disimpan.`, 'success')
+    } else {
+      Swal.fire('Sebagian Gagal', `${successCount} berhasil, ${failCount} gagal.`, 'warning')
+    }
+  })
+}
+
+// Hapus dari antrian
+const removePending = (idx) => {
+  pendingExpenses.value.splice(idx, 1)
+}
+
 // Lapor Modal Actions
 const openModalLapor = (item, field, sysVal) => {
   const isAwal = field === 'Awal'
@@ -663,25 +739,20 @@ const openModalLapor = (item, field, sysVal) => {
       html: `
         <div class="text-start" style="font-family: 'Inter', sans-serif; font-size: 0.78rem;">
           <div class="card border-0 shadow-sm mb-2 rounded-3" style="background: linear-gradient(135deg, #fff5f5 0%, #fff 100%); border-left: 4px solid #dc3545 !important;">
-            <div class="card-body p-2.5">
-              <h6 class="fw-bold text-dark mb-0.5" style="font-size: 0.85rem; line-height: 1.2;">${item.nama}</h6>
+            <div class="card-body p-2">
+              <h6 class="fw-bold text-dark mb-1" style="font-size: 0.85rem;">${item.nama}</h6>
               <div class="text-muted mb-2" style="font-size: 0.7rem;">${item.brand && item.brand !== '-' ? item.brand : 'PWA'} (${item.kategori})</div>
-              
               <div class="row g-1 text-center">
                 <div class="col-6">
-                  <div class="bg-white p-1.5 rounded-2 border">
+                  <div class="bg-white p-2 rounded-2 border">
                     <div class="text-secondary fw-semibold" style="font-size: 0.65rem;">Sistem</div>
-                    <div class="fw-bold text-dark mt-0.5" style="font-size: 0.8rem;">
-                      ${isSaldo ? formatRp(getNumericValue(sysVal)) : sysVal}
-                    </div>
+                    <div class="fw-bold text-dark" style="font-size: 0.8rem;">${isSaldo ? formatRp(getNumericValue(sysVal)) : sysVal}</div>
                   </div>
                 </div>
                 <div class="col-6">
-                  <div class="bg-white p-1.5 rounded-2 border border-danger bg-danger bg-opacity-10">
+                  <div class="bg-danger bg-opacity-10 p-2 rounded-2 border border-danger">
                     <div class="text-danger fw-semibold" style="font-size: 0.65rem;">Fisik Lapor</div>
-                    <div class="fw-bold text-danger mt-0.5" style="font-size: 0.8rem;">
-                      ⚠️ ${isSaldo ? formatRp(getNumericValue(reportedVal)) : reportedVal}
-                    </div>
+                    <div class="fw-bold text-danger" style="font-size: 0.8rem;">⚠️ ${isSaldo ? formatRp(getNumericValue(reportedVal)) : reportedVal}</div>
                   </div>
                 </div>
               </div>
@@ -703,15 +774,14 @@ const openModalLapor = (item, field, sysVal) => {
       padding: '0.75rem',
       customClass: {
         popup: 'rounded-4 border-0 shadow-lg',
-        confirmButton: 'btn btn-sm btn-primary fw-bold px-2 py-1.5 rounded-3 me-1 shadow-sm',
-        denyButton: 'btn btn-sm btn-danger fw-bold px-2 py-1.5 rounded-3 me-1 shadow-sm',
-        cancelButton: 'btn btn-sm btn-secondary fw-bold px-2 py-1.5 rounded-3'
+        confirmButton: 'btn btn-sm btn-primary fw-bold px-2 py-1 rounded-3 me-1 shadow-sm',
+        denyButton: 'btn btn-sm btn-danger fw-bold px-2 py-1 rounded-3 me-1 shadow-sm',
+        cancelButton: 'btn btn-sm btn-secondary fw-bold px-2 py-1 rounded-3'
       }
     }).then(async (result) => {
       if (result.isConfirmed) {
-        // EDIT LAPORAN
         Swal.fire({
-          title: `<span class="fw-bold" style="font-family: 'Outfit', sans-serif; color: #0d6efd; font-size: 1.05rem;">Revisi Nilai Fisik</span>`,
+          title: `<span class="fw-bold" style="color: #0d6efd; font-size: 1.05rem;">Revisi Nilai Fisik</span>`,
           input: 'number',
           inputValue: getNumericValue(reportedVal),
           inputLabel: 'Masukkan jumlah real fisik yang benar:',
@@ -725,24 +795,19 @@ const openModalLapor = (item, field, sysVal) => {
           customClass: {
             popup: 'rounded-4 border-0 shadow-lg',
             inputLabel: 'small text-secondary fw-semibold mb-1',
-            input: 'form-control form-control-sm py-1.5 text-center',
-            confirmButton: 'btn btn-sm btn-primary fw-bold px-3 py-1.5 rounded-3 shadow-sm me-2',
-            cancelButton: 'btn btn-sm btn-secondary fw-bold px-3 py-1.5 rounded-3'
+            input: 'form-control form-control-sm py-1 text-center',
+            confirmButton: 'btn btn-sm btn-primary fw-bold px-3 py-1 rounded-3 shadow-sm me-2',
+            cancelButton: 'btn btn-sm btn-secondary fw-bold px-3 py-1 rounded-3'
           },
           preConfirm: (value) => {
-            if (value === '' || value === null) {
-              Swal.showValidationMessage('Nilai wajib diisi')
-              return false
-            }
+            if (value === '' || value === null) { Swal.showValidationMessage('Nilai wajib diisi'); return false }
             return value
           }
         }).then(async (editResult) => {
           if (editResult.isConfirmed) {
             Swal.fire({ title: 'Mengubah Laporan...', didOpen: () => Swal.showLoading() })
             const displayNama = (item.brand && item.brand !== '-' && item.brand.toLowerCase() !== 'umum' && item.brand.toLowerCase() !== 'aksesoris') 
-              ? (String(item.brand).toLowerCase().trim() + "-" + item.nama) 
-              : item.nama
-              
+              ? (String(item.brand).toLowerCase().trim() + "-" + item.nama) : item.nama
             const res = await callApi('editLaporanSalah', {
               row: logRow,
               toko: store.user.store,
@@ -752,44 +817,32 @@ const openModalLapor = (item, field, sysVal) => {
               nilaiBaru: isSaldo ? editResult.value : parseInt(editResult.value)
             })
             Swal.close()
-            
-            if (res.success) {
-              Swal.fire('Sukses', 'Laporan berhasil diupdate!', 'success')
-              loadStock() // Reload stock to refresh indicators
-            } else {
-              Swal.fire('Gagal', res.msg || 'Terjadi kesalahan.', 'error')
-            }
+            if (res.success) { Swal.fire('Sukses', 'Laporan berhasil diupdate!', 'success'); loadStock() }
+            else Swal.fire('Gagal', res.msg || 'Terjadi kesalahan.', 'error')
           }
         })
       } else if (result.isDenied) {
-        // HAPUS LAPORAN
         Swal.fire({
           title: 'Hapus Laporan?',
-          text: 'Laporan kesalahan stok ini akan dibatalkan/dihapus dari log log.',
+          text: 'Laporan kesalahan stok ini akan dihapus dari log.',
           icon: 'warning',
           showCancelButton: true,
           confirmButtonColor: '#dc3545',
           confirmButtonText: 'Ya, Hapus',
           cancelButtonText: 'Batal',
           width: '300px',
-          padding: '0.75rem',
           customClass: {
             popup: 'rounded-4 border-0 shadow-lg',
-            confirmButton: 'btn btn-sm btn-danger fw-bold px-3 py-1.5 rounded-3 shadow-sm me-2',
-            cancelButton: 'btn btn-sm btn-secondary fw-bold px-3 py-1.5 rounded-3'
+            confirmButton: 'btn btn-sm btn-danger fw-bold px-3 py-1 rounded-3 shadow-sm me-2',
+            cancelButton: 'btn btn-sm btn-secondary fw-bold px-3 py-1 rounded-3'
           }
         }).then(async (confirmDelete) => {
           if (confirmDelete.isConfirmed) {
             Swal.fire({ title: 'Menghapus Laporan...', didOpen: () => Swal.showLoading() })
             const res = await callApi('hapusLaporanSalah', { row: logRow })
             Swal.close()
-            
-            if (res.success) {
-              Swal.fire('Sukses', 'Laporan berhasil dihapus!', 'success')
-              loadStock() // Reload stock to refresh indicators
-            } else {
-              Swal.fire('Gagal', res.msg || 'Terjadi kesalahan.', 'error')
-            }
+            if (res.success) { Swal.fire('Sukses', 'Laporan berhasil dihapus!', 'success'); loadStock() }
+            else Swal.fire('Gagal', res.msg || 'Terjadi kesalahan.', 'error')
           }
         })
       }
@@ -797,17 +850,15 @@ const openModalLapor = (item, field, sysVal) => {
     return
   }
 
-  // Jika belum dilaporkan, tampilkan modal KIRIM LAPORAN baru menggunakan SweetAlert2 agar konsisten!
   Swal.fire({
     title: `<span class="fw-bold" style="font-family: 'Outfit', sans-serif; color: #ffc107; font-size: 1.05rem;">Lapor Selisih / Topup</span>`,
     html: `
       <div class="text-start" style="font-family: 'Inter', sans-serif; font-size: 0.78rem;">
         <div class="card border-0 shadow-sm mb-2 rounded-3" style="background: linear-gradient(135deg, #fff9e6 0%, #fff 100%); border-left: 4px solid #ffc107 !important;">
-          <div class="card-body p-2.5">
-            <h6 class="fw-bold text-dark mb-0.5" style="font-size: 0.85rem; line-height: 1.2;">${item.nama}</h6>
+          <div class="card-body p-2">
+            <h6 class="fw-bold text-dark mb-1" style="font-size: 0.85rem;">${item.nama}</h6>
             <div class="text-muted mb-2" style="font-size: 0.7rem;">${item.brand && item.brand !== '-' ? item.brand : 'PWA'} (${item.kategori})</div>
-            
-            <div class="d-flex justify-content-between align-items-center bg-white p-1.5 rounded-2 border">
+            <div class="d-flex justify-content-between align-items-center bg-white p-2 rounded-2 border">
               <span class="fw-semibold text-secondary" style="font-size: 0.7rem;">Tipe: <b>Selisih ${field}</b></span>
               <span class="badge bg-warning text-dark px-2 py-1 rounded-pill fw-bold" style="font-size: 0.65rem;">
                 Sistem: ${isSaldo ? formatRp(getNumericValue(sysVal)) : sysVal}
@@ -815,12 +866,11 @@ const openModalLapor = (item, field, sysVal) => {
             </div>
           </div>
         </div>
-        
         <div class="mb-1">
           <label class="form-label fw-bold text-secondary mb-1" style="font-size: 0.7rem;">Jumlah Real / Fisik Sebenarnya</label>
           <div class="input-group input-group-sm">
-            <span class="input-group-text bg-light border-end-0 rounded-start-3" style="border-color:#dee2e6;"><i class="fa-solid fa-calculator text-muted"></i></span>
-            <input type="number" id="swal_new_real_val" class="form-control border-start-0 rounded-end-3 py-1.5 text-center" style="border-color:#dee2e6; font-size: 0.85rem;" placeholder="0" autofocus>
+            <span class="input-group-text bg-light border-end-0 rounded-start-3"><i class="fa-solid fa-calculator text-muted"></i></span>
+            <input type="number" id="swal_new_real_val" class="form-control border-start-0 rounded-end-3 text-center" style="font-size: 0.85rem;" placeholder="0" autofocus>
           </div>
         </div>
       </div>
@@ -834,15 +884,12 @@ const openModalLapor = (item, field, sysVal) => {
     padding: '0.75rem',
     customClass: {
       popup: 'rounded-4 border-0 shadow-lg',
-      confirmButton: 'btn btn-sm btn-warning fw-bold px-3 py-1.5 rounded-3 text-dark shadow-sm me-2',
-      cancelButton: 'btn btn-sm btn-secondary fw-bold px-3 py-1.5 rounded-3'
+      confirmButton: 'btn btn-sm btn-warning fw-bold px-3 py-1 rounded-3 text-dark shadow-sm me-2',
+      cancelButton: 'btn btn-sm btn-secondary fw-bold px-3 py-1 rounded-3'
     },
     preConfirm: () => {
       const val = document.getElementById('swal_new_real_val').value
-      if (val === '' || val === null) {
-        Swal.showValidationMessage('Jumlah real/fisik wajib diisi')
-        return false
-      }
+      if (val === '' || val === null) { Swal.showValidationMessage('Jumlah real/fisik wajib diisi'); return false }
       return val
     }
   }).then(async (result) => {
@@ -858,127 +905,142 @@ const openModalLapor = (item, field, sysVal) => {
         nilaiBaru: isSaldo ? result.value : parseInt(result.value),
         ket: 'Dikirim dari Vue PWA'
       }
-      
       Swal.fire({ title: 'Mengirim Laporan...', didOpen: () => Swal.showLoading() })
       const res = await callApi('simpanLaporanSalah', payload)
       Swal.close()
-      
-      if (res.success) {
-        Swal.fire('Terkirim', 'Laporan berhasil dikirim.', 'success')
-        loadStock()
-      } else {
-        Swal.fire('Gagal', res.msg || 'Gagal mengirim laporan.', 'error')
-      }
+      if (res.success) { Swal.fire('Terkirim', 'Laporan berhasil dikirim.', 'success'); loadStock() }
+      else Swal.fire('Gagal', res.msg || 'Gagal mengirim laporan.', 'error')
     }
   })
 }
 
-// Pengeluaran Actions (tambah, edit, hapus)
+// Pengeluaran: Tambah ke antrian lokal (tidak langsung POST)
 const handleTambahPengeluaran = () => {
   Swal.fire({
     title: 'Tambah Pengeluaran',
     html: `
-      <input type="text" inputmode="numeric" id="peng_nom" class="form-control mb-2" placeholder="Nominal (Rp)">
-      <input type="text" id="peng_ket" class="form-control" placeholder="Keterangan">
+      <div class="mb-2">
+        <label class="form-label small text-muted fw-semibold mb-1">Nominal</label>
+        <input type="text" inputmode="numeric" id="peng_nom" class="form-control" placeholder="Rp 0">
+      </div>
+      <div>
+        <label class="form-label small text-muted fw-semibold mb-1">Keterangan</label>
+        <input type="text" id="peng_ket" class="form-control" placeholder="Keterangan pengeluaran">
+      </div>
     `,
     showCancelButton: true,
-    confirmButtonText: 'Simpan',
+    confirmButtonText: '<i class="fa-solid fa-cart-plus me-1"></i> Tambahkan',
     cancelButtonText: 'Batal',
+    confirmButtonColor: '#f59e0b',
     focusConfirm: false,
     didOpen: () => {
       const input = document.getElementById('peng_nom')
-      if (input) {
-        input.addEventListener('input', (e) => {
-          let value = e.target.value.replace(/\D/g, '')
-          let num = parseInt(value) || 0
-          e.target.value = num > 0 ? 'Rp ' + new Intl.NumberFormat('id-ID').format(num) : ''
-        })
-      }
+      if (!input) return
+      const fmt = (num, neg) => neg ? '- Rp ' + new Intl.NumberFormat('id-ID').format(num) : 'Rp ' + new Intl.NumberFormat('id-ID').format(num)
+      input.addEventListener('keydown', (e) => {
+        if (e.key === '-') {
+          // Toggle tanda minus berdasarkan kondisi saat ini
+          const curIsNeg = input.value.includes('-')
+          const digits = input.value.replace(/\D/g, '')
+          const num = parseInt(digits) || 0
+          if (num > 0) input.value = fmt(num, !curIsNeg)
+          else input.value = curIsNeg ? '' : '-'
+          e.preventDefault()
+        } else if (e.key === 'Backspace' || e.key === 'Delete') {
+          // Biarkan default hapus, lalu on input akan reformat
+        }
+      })
+      input.addEventListener('input', (e) => {
+        const raw = e.target.value
+        const isNeg = raw.includes('-')
+        const digits = raw.replace(/\D/g, '')
+        const num = parseInt(digits) || 0
+        if (num === 0) {
+          e.target.value = ''
+        } else {
+          e.target.value = fmt(num, isNeg)
+        }
+      })
     },
     preConfirm: () => {
       const valStr = document.getElementById('peng_nom').value
-      const nominal = parseInt(valStr.replace(/\D/g, '')) || 0
+      const isNeg = valStr.includes('-')
+      const nominal = (parseInt(valStr.replace(/\D/g, '')) || 0) * (isNeg ? -1 : 1)
       const ket = document.getElementById('peng_ket').value
-      if (!nominal || !ket) {
-        Swal.showValidationMessage('Nominal dan keterangan wajib diisi')
-        return false
-      }
+      if (!nominal || !ket) { Swal.showValidationMessage('Nominal dan keterangan wajib diisi'); return false }
       return { nominal, ket }
     }
-  }).then(async (result) => {
+  }).then((result) => {
     if (result.isConfirmed) {
-      Swal.fire({ title: 'Menyimpan...', didOpen: () => Swal.showLoading() })
-      const res = await callApi('tambahPengeluaran', {
-        toko: store.user.store,
-        nominal: result.value.nominal,
-        ket: result.value.ket
-      })
-      Swal.close()
-
-      if (res.success) {
-        await loadStock()
-        Swal.fire('Sukses', 'Pengeluaran berhasil ditambahkan.', 'success')
-      } else {
-        Swal.fire('Gagal', res.msg || 'Gagal menyimpan.', 'error')
-      }
+      pendingExpenses.value.push({ nominal: result.value.nominal, ket: result.value.ket })
     }
   })
 }
 
 const handleEditPengeluaran = (item) => {
   const price = getNumericValue(item.harga)
-  
   Swal.fire({
     title: 'Edit Pengeluaran',
     html: `
-      <input type="text" inputmode="numeric" id="edit_peng_nom" class="form-control mb-2" value="${price}">
-      <input type="text" id="edit_peng_ket" class="form-control" value="${item.nama}">
+      <div class="mb-2">
+        <label class="form-label small text-muted fw-semibold mb-1">Nominal</label>
+        <input type="text" inputmode="numeric" id="edit_peng_nom" class="form-control" placeholder="Rp 0">
+      </div>
+      <div>
+        <label class="form-label small text-muted fw-semibold mb-1">Keterangan</label>
+        <input type="text" id="edit_peng_ket" class="form-control" value="${item.nama}">
+      </div>
     `,
     showCancelButton: true,
     confirmButtonText: 'Update',
     cancelButtonText: 'Batal',
     didOpen: () => {
       const input = document.getElementById('edit_peng_nom')
-      if (input) {
-        // Format initial value
-        let val = input.value.replace(/\D/g, '')
-        let n = parseInt(val) || 0
-        input.value = n > 0 ? 'Rp ' + new Intl.NumberFormat('id-ID').format(n) : ''
-
-        input.addEventListener('input', (e) => {
-          let value = e.target.value.replace(/\D/g, '')
-          let num = parseInt(value) || 0
-          e.target.value = num > 0 ? 'Rp ' + new Intl.NumberFormat('id-ID').format(num) : ''
-        })
-      }
+      if (!input) return
+      const fmt = (num, neg) => neg ? '- Rp ' + new Intl.NumberFormat('id-ID').format(num) : 'Rp ' + new Intl.NumberFormat('id-ID').format(num)
+      // Set nilai awal
+      const initNum = Math.abs(price)
+      if (initNum > 0) input.value = fmt(initNum, price < 0)
+      input.addEventListener('keydown', (e) => {
+        if (e.key === '-') {
+          const curIsNeg = input.value.includes('-')
+          const digits = input.value.replace(/\D/g, '')
+          const num = parseInt(digits) || 0
+          if (num > 0) input.value = fmt(num, !curIsNeg)
+          else input.value = curIsNeg ? '' : '-'
+          e.preventDefault()
+        }
+      })
+      input.addEventListener('input', (e) => {
+        const raw = e.target.value
+        const isNeg = raw.includes('-')
+        const digits = raw.replace(/\D/g, '')
+        const num = parseInt(digits) || 0
+        if (num === 0) {
+          e.target.value = ''
+        } else {
+          e.target.value = fmt(num, isNeg)
+        }
+      })
     },
     preConfirm: () => {
       const valStr = document.getElementById('edit_peng_nom').value
-      const nominal = parseInt(valStr.replace(/\D/g, '')) || 0
+      const isNeg = valStr.includes('-')
+      const nominal = (parseInt(valStr.replace(/\D/g, '')) || 0) * (isNeg ? -1 : 1)
       const ket = document.getElementById('edit_peng_ket').value
-      if (!nominal || !ket) {
-        Swal.showValidationMessage('Nominal dan keterangan wajib diisi')
-        return false
-      }
+      if (!nominal || !ket) { Swal.showValidationMessage('Nominal dan keterangan wajib diisi'); return false }
       return { nominal, ket }
     }
   }).then(async (result) => {
     if (result.isConfirmed) {
       Swal.fire({ title: 'Mengupdate...', didOpen: () => Swal.showLoading() })
       const res = await callApi('editPengeluaran', {
-        toko: store.user.store,
-        row: item.row,
-        nominal: result.value.nominal,
-        ket: result.value.ket
+        toko: store.user.store, row: item.row,
+        nominal: result.value.nominal, ket: result.value.ket
       })
       Swal.close()
-
-      if (res.success) {
-        await loadStock()
-        Swal.fire('Sukses', 'Pengeluaran diperbarui.', 'success')
-      } else {
-        Swal.fire('Gagal', res.msg || 'Gagal mengupdate.', 'error')
-      }
+      if (res.success) { await loadStock(); Swal.fire('Sukses', 'Pengeluaran diperbarui.', 'success') }
+      else Swal.fire('Gagal', res.msg || 'Gagal mengupdate.', 'error')
     }
   })
 }
@@ -995,31 +1057,19 @@ const handleHapusPengeluaran = (item) => {
   }).then(async (result) => {
     if (result.isConfirmed) {
       Swal.fire({ title: 'Menghapus...', didOpen: () => Swal.showLoading() })
-      const res = await callApi('hapusPengeluaran', {
-        toko: store.user.store,
-        row: item.row
-      })
+      const res = await callApi('hapusPengeluaran', { toko: store.user.store, row: item.row })
       Swal.close()
-
-      if (res.success) {
-        await loadStock()
-        Swal.fire('Terhapus', 'Pengeluaran telah dihapus.', 'success')
-      } else {
-        Swal.fire('Gagal', res.msg || 'Gagal menghapus.', 'error')
-      }
+      if (res.success) { await loadStock(); Swal.fire('Terhapus', 'Pengeluaran telah dihapus.', 'success') }
+      else Swal.fire('Gagal', res.msg || 'Gagal menghapus.', 'error')
     }
   })
 }
 
 onMounted(() => {
-  if (store.stockCache.length === 0) {
-    loadStock()
-  }
+  if (store.stockCache.length === 0) loadStock()
 })
 
-defineExpose({
-  loadStock
-})
+defineExpose({ loadStock })
 </script>
 
 <style scoped>
@@ -1103,36 +1153,66 @@ defineExpose({
   box-shadow: 0 0 0 0.25rem rgba(13, 110, 253, 0.25);
 }
 
-.fab-container { 
-  position: fixed; 
-  bottom: 85px; 
-  right: 15px; 
-  z-index: 1050; 
+/* Card Pengeluaran Positif (biasa) — biru gelap/slate */
+.card-expense-plus {
+  background: linear-gradient(135deg, #1e3a5f, #2d6a9f);
+  color: white;
+  min-height: 90px;
 }
 
-.btn-fab { 
-  width: 55px; 
-  height: 55px; 
-  border-radius: 50%; 
-  background: #0d6efd; 
-  color: white; 
-  border: none; 
-  box-shadow: 0 4px 8px rgba(0,0,0,0.2);
+/* Card Pengeluaran Negatif (Pengembalian/Minus) — merah gelap */
+.card-expense-minus {
+  background: linear-gradient(135deg, #7f1416, #b91c1c);
+  color: white;
+  min-height: 90px;
+}
+
+/* ======================== FAB GROUP ======================== */
+.fab-group {
+  position: fixed;
+  bottom: 80px;   /* tepat di atas bottom navbar */
+  right: 15px;
+  z-index: 1050;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 10px;
+}
+
+.fab-item {
+  position: relative;
+}
+
+.btn-fab {
+  width: 60px;
+  height: 60px;
+  border-radius: 50%;
+  color: white;
+  border: none;
+  box-shadow: 0 4px 12px rgba(0,0,0,0.25);
   display: flex;
   align-items: center;
   justify-content: center;
-  font-size: 1.2rem;
-  transition: transform 0.2s;
+  font-size: 1.3rem;
+  transition: transform 0.2s, box-shadow 0.2s;
+  cursor: pointer;
 }
 
 .btn-fab:active {
-  transform: scale(0.9);
+  transform: scale(0.88);
+  box-shadow: 0 2px 6px rgba(0,0,0,0.2);
 }
+
+/* Warna masing-masing FAB */
+.btn-fab-blue  { background: linear-gradient(135deg, #0d6efd, #0a58ca); }
+.btn-fab-green { background: linear-gradient(135deg, #198754, #157347); }
+.btn-fab-yellow { background: linear-gradient(135deg, #f59e0b, #d97706); }
+.btn-fab-teal  { background: linear-gradient(135deg, #0891b2, #0e7490); }
 
 .fab-badge {
   position: absolute;
-  top: -2px;
-  right: -2px;
+  top: -3px;
+  right: -3px;
   background-color: #dc3545;
   color: white;
   border-radius: 50%;
@@ -1141,7 +1221,7 @@ defineExpose({
   display: flex;
   align-items: center;
   justify-content: center;
-  font-size: 0.7rem;
+  font-size: 0.68rem;
   font-weight: bold;
   border: 2px solid white;
 }
@@ -1174,15 +1254,69 @@ defineExpose({
   color: #842029 !important;
 }
 
-.fab-add-expense {
-  position: fixed;
-  bottom: 85px;
-  right: 15px;
-  z-index: 1045;
-  transition: bottom 0.2s ease-in-out;
+.cursor-pointer {
+  cursor: pointer;
 }
 
-.fab-add-expense.shifted {
-  bottom: 155px;
+.animate-fade {
+  animation: fadeIn 0.2s ease-in-out;
+}
+
+@keyframes fadeIn {
+  from { opacity: 0; transform: translateY(4px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+/* ===================== SKELETON LOADING ===================== */
+.card-skeleton {
+  border: 1px solid #e9ecef;
+  border-left: 4px solid #dee2e6;
+  background: #fff;
+  border-radius: 10px;
+  margin-bottom: 6px;
+  padding: 10px 12px;
+  overflow: hidden;
+}
+
+.skel-line,
+.skel-box {
+  background: linear-gradient(90deg, #f0f0f0 25%, #e0e0e0 50%, #f0f0f0 75%);
+  background-size: 200% 100%;
+  animation: shimmer 1.4s infinite;
+  border-radius: 4px;
+}
+
+.skel-title {
+  height: 14px;
+  width: 70%;
+}
+
+.skel-badge {
+  height: 10px;
+  width: 35%;
+  border-radius: 99px;
+}
+
+.skel-val {
+  height: 12px;
+  width: 70%;
+}
+
+.skel-val-sm {
+  height: 10px;
+  width: 50%;
+}
+
+.skel-box {
+  height: 38px;
+  border-radius: 6px;
+}
+
+.skel-box-tall {
+  height: 34px;
+}
+
+@keyframes shimmer {
+  0%   { background-position: 200% 0; }
+  100% { background-position: -200% 0; }
 }
 </style>

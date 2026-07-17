@@ -23,15 +23,18 @@
       <!-- Main Content Area -->
       <main class="container-fluid main-content">
         <HomeView 
+          v-if="homeMounted"
           v-show="currentTab === 'home'" 
           @refresh-stock="triggerStockRefresh" 
         />
         <StokView 
+          v-if="stokMounted"
           v-show="currentTab === 'stok' || currentTab === 'pengeluaran' || currentTab === 'uangcash'" 
           :active-tab="currentTab"
           ref="stokViewRef" 
         />
         <AkunView 
+          v-if="akunMounted"
           v-show="currentTab === 'akun'" 
         />
       </main>
@@ -105,17 +108,23 @@
 </template>
 
 <script setup>
-import { ref, computed, onMounted, onUnmounted } from 'vue'
+import { ref, computed, onMounted, onUnmounted, defineAsyncComponent } from 'vue'
 import { store } from './store'
-import LoginView from './views/LoginView.vue'
-import HomeView from './views/HomeView.vue'
-import StokView from './views/StokView.vue'
-import AkunView from './views/AkunView.vue'
 import Swal from 'sweetalert2'
+
+const LoginView = defineAsyncComponent(() => import('./views/LoginView.vue'))
+const HomeView  = defineAsyncComponent(() => import('./views/HomeView.vue'))
+const StokView  = defineAsyncComponent(() => import('./views/StokView.vue'))
+const AkunView  = defineAsyncComponent(() => import('./views/AkunView.vue'))
 
 const currentTab = ref('home')
 const digitalClock = ref('00:00')
 const stokViewRef = ref(null)
+
+// Lazy mount flags: komponen hanya di-mount saat pertama dikunjungi
+const homeMounted = ref(true)   // home adalah tab default, langsung mount
+const stokMounted = ref(false)  // mount saat pertama buka stok/pengeluaran/uangcash
+const akunMounted = ref(false)  // mount saat pertama buka akun
 
 let clockInterval = null
 
@@ -165,6 +174,12 @@ const updateClock = () => {
 const navTo = (tab) => {
   if ((tab === 'stok' || tab === 'pengeluaran' || tab === 'uangcash') && !store.status.isAbsen) {
     return // Block access if not checked-in
+  }
+  // Set lazy mount flag saat pertama dikunjungi
+  if (tab === 'stok' || tab === 'pengeluaran' || tab === 'uangcash') {
+    stokMounted.value = true
+  } else if (tab === 'akun') {
+    akunMounted.value = true
   }
   currentTab.value = tab
 }
