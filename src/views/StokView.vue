@@ -165,11 +165,11 @@
                   </span>
                 </div>
               </div>
-              <div class="text-end text-nowrap" v-show="getTerjualBarang(item) > 0">
+              <div class="text-end text-nowrap" v-show="getTerjualBarang(item) !== 0">
                 <div class="small text-muted fw-bold" style="font-size: 0.85rem;">
                   Terjual: <span class="text-dark">{{ getTerjualBarang(item) }}</span>
                 </div>
-                <div class="fw-bold text-success" style="font-size: 0.95rem;">
+                <div class="fw-bold" :class="getTerjualBarang(item) < 0 ? 'text-danger' : 'text-success'" style="font-size: 0.95rem;">
                   {{ formatRp(getTerjualBarang(item) * getNumericValue(item.harga)) }}
                 </div>
               </div>
@@ -231,9 +231,9 @@
                   <span class="badge bg-secondary text-white rounded-pill" style="font-size: 0.6rem;">Elektrik</span>
                 </div>
               </div>
-              <div class="text-end text-nowrap" v-show="getTerjualSaldo(item) > 0">
+              <div class="text-end text-nowrap" v-show="getTerjualSaldo(item) !== 0">
                 <div class="small text-muted fw-bold" style="font-size: 0.65rem;">Nominal Terjual</div>
-                <div class="fw-bold text-success" style="font-size: 0.75rem;">
+                <div class="fw-bold" :class="getTerjualSaldo(item) < 0 ? 'text-danger' : 'text-success'" style="font-size: 0.75rem;">
                   {{ formatRp(getTerjualSaldo(item)) }}
                 </div>
               </div>
@@ -339,26 +339,15 @@
 
     <!-- ============== FAB GROUP (sejajar di atas icon Akun) ============== -->
     <div class="fab-group">
-      <!-- FAB Save Batch Stok -->
+      <!-- FAB Save Batch Semua (Stok & Pengeluaran) -->
       <div 
-        v-if="changedCount > 0" 
+        v-if="changedCount > 0 || pendingExpenses.length > 0" 
         class="fab-item position-relative"
-        @click="saveBatch"
-        title="Simpan Perubahan Stok"
+        @click="saveAll"
+        title="Simpan Perubahan"
       >
         <button class="btn-fab btn-fab-blue"><i class="fa-solid fa-floppy-disk"></i></button>
-        <div class="fab-badge">{{ changedCount }}</div>
-      </div>
-
-      <!-- FAB Save Batch Pengeluaran -->
-      <div 
-        v-if="activeTab === 'pengeluaran' && pendingExpenses.length > 0"
-        class="fab-item position-relative"
-        @click="saveBatchPengeluaran"
-        title="Simpan Antrian Pengeluaran"
-      >
-        <button class="btn-fab btn-fab-green"><i class="fa-solid fa-cloud-arrow-up"></i></button>
-        <div class="fab-badge bg-success">{{ pendingExpenses.length }}</div>
+        <div class="fab-badge">{{ changedCount + pendingExpenses.length }}</div>
       </div>
 
       <!-- FAB Tambah Pengeluaran -->
@@ -631,27 +620,14 @@ const loadStock = async () => {
   }
 }
 
-// Save Changes Stok
-const saveBatch = () => {
-  if (changedCount.value === 0) return
+// Save All Changes (Stok & Pengeluaran)
+const saveAll = () => {
+  const totalChanges = changedCount.value + pendingExpenses.value.length
+  if (totalChanges === 0) return
   
-  let itemsToUpdate = []
-  changedKeys.value.forEach(key => {
-    const item = store.stockCache.find(i => getItemKey(i) === key)
-    if (item) {
-      itemsToUpdate.push({
-        nama: item.nama,
-        kategori: item.kategori,
-        row: item.row,
-        stokBaru: store.unsavedChanges[key],
-        tipe: item.tipe
-      })
-    }
-  })
-
   Swal.fire({
     title: 'Simpan Data?',
-    text: `Menyimpan ${changedCount.value} perubahan ke server`,
+    text: `Menyimpan ${totalChanges} perubahan ke server`,
     icon: 'question',
     showCancelButton: true,
     confirmButtonText: 'Ya, Simpan',
@@ -659,61 +635,65 @@ const saveBatch = () => {
   }).then(async (result) => {
     if (result.isConfirmed) {
       Swal.fire({ title: 'Menyimpan...', didOpen: () => Swal.showLoading() })
-      const res = await callApi('batchUpdateStok', {
-        toko: store.user.store,
-        user: store.user.name,
-        items: itemsToUpdate
-      })
-      Swal.close()
+      
+      let allSuccess = true
+      let errMsgs = []
 
-      if (res.success) {
-        store.clearUnsavedChanges()
-        await loadStock()
-        Swal.fire('Sukses', res.msg, 'success')
-      } else {
-        Swal.fire('Gagal', res.msg || 'Gagal menyimpan data.', 'error')
+      // 1. Simpan Stok (jika ada)
+      if (changedCount.value > 0) {
+        let itemsToUpdate = []
+        changedKeys.value.forEach(key => {
+          const item = store.stockCache.find(i => getItemKey(i) === key)
+          if (item) {
+            itemsToUpdate.push({
+              nama: item.nama,
+              kategori: item.kategori,
+              row: item.row,
+              stokBaru: store.unsavedChanges[key],
+              tipe: item.tipe
+            })
+          }
+        })
+        const resStok = await callApi('batchUpdateStok', {
+          toko: store.user.store,
+          user: store.user.name,
+          items: itemsToUpdate
+        })
+        if (resStok.success) {
+          store.clearUnsavedChanges()
+        } else {
+          allSuccess = false
+          errMsgs.push('Stok: ' + (resStok.msg || 'Gagal menyimpan'))
+        }
       }
-    }
-  })
-}
 
-// Save Batch Pengeluaran (kirim semua antrian ke server)
-const saveBatchPengeluaran = () => {
-  if (pendingExpenses.value.length === 0) return
+      // 2. Simpan Pengeluaran (jika ada)
+      if (pendingExpenses.value.length > 0) {
+        let failCount = 0
+        for (const expense of pendingExpenses.value) {
+          const resPeng = await callApi('tambahPengeluaran', {
+            toko: store.user.store,
+            nominal: expense.nominal,
+            ket: expense.ket
+          })
+          if (!resPeng.success) failCount++
+        }
+        if (failCount === 0) {
+          pendingExpenses.value = []
+        } else {
+          allSuccess = false
+          errMsgs.push(`Pengeluaran: ${failCount} entri gagal disimpan`)
+        }
+      }
 
-  Swal.fire({
-    title: 'Simpan Pengeluaran?',
-    text: `Mengirim ${pendingExpenses.value.length} entri pengeluaran ke server.`,
-    icon: 'question',
-    showCancelButton: true,
-    confirmButtonText: 'Ya, Simpan',
-    cancelButtonText: 'Batal',
-    confirmButtonColor: '#198754'
-  }).then(async (result) => {
-    if (!result.isConfirmed) return
+      Swal.close()
+      await loadStock()
 
-    Swal.fire({ title: 'Menyimpan...', didOpen: () => Swal.showLoading() })
-    let successCount = 0
-    let failCount = 0
-
-    for (const expense of pendingExpenses.value) {
-      const res = await callApi('tambahPengeluaran', {
-        toko: store.user.store,
-        nominal: expense.nominal,
-        ket: expense.ket
-      })
-      if (res.success) successCount++
-      else failCount++
-    }
-    
-    pendingExpenses.value = []
-    await loadStock()
-    Swal.close()
-
-    if (failCount === 0) {
-      Swal.fire('Sukses', `${successCount} pengeluaran berhasil disimpan.`, 'success')
-    } else {
-      Swal.fire('Sebagian Gagal', `${successCount} berhasil, ${failCount} gagal.`, 'warning')
+      if (allSuccess) {
+        Swal.fire('Sukses', 'Semua perubahan berhasil disimpan.', 'success')
+      } else {
+        Swal.fire('Sebagian Gagal', errMsgs.join('<br>'), 'warning')
+      }
     }
   })
 }
@@ -916,6 +896,20 @@ const openModalLapor = (item, field, sysVal) => {
 
 // Pengeluaran: Tambah ke antrian lokal (tidak langsung POST)
 const handleTambahPengeluaran = () => {
+  // Hitung jumlah pengeluaran saat ini (yang sudah ada + di antrian)
+  const existingCount = store.stockCache.filter(item => item.tipe === 'uang' && item.nama).length
+  const pendingCount = pendingExpenses.value.length
+  const MAX_PENGELUARAN = 14
+  
+  if (existingCount + pendingCount >= MAX_PENGELUARAN) {
+    Swal.fire({
+      icon: 'error',
+      title: 'Gagal',
+      text: 'Pengeluaran penuh'
+    })
+    return
+  }
+
   Swal.fire({
     title: 'Tambah Pengeluaran',
     html: `
