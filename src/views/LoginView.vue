@@ -37,7 +37,7 @@
             @click="handleLogin"
           >
             <span v-if="loading" class="spinner-border spinner-border-sm me-2" role="status" aria-hidden="true"></span>
-            MASUK
+            {{ loading ? 'Memverifikasi..' : 'MASUK' }}
           </button>
         </div>
       </div>
@@ -65,11 +65,6 @@ const handleLogin = async () => {
   }
   
   loading.value = true
-  Swal.fire({
-    title: 'Memverifikasi...',
-    allowOutsideClick: false,
-    didOpen: () => Swal.showLoading()
-  })
   
   const res = await callApi('login', { 
     email: email.value.trim(), 
@@ -77,7 +72,6 @@ const handleLogin = async () => {
   })
   
   loading.value = false
-  Swal.close()
   
   if (res.success) {
     store.setUser({

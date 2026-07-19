@@ -54,8 +54,11 @@
         <button 
           class="btn btn-success w-100 rounded-pill py-3 shadow-sm btn-absen-submit"
           @click="submitAbsen('Masuk')"
+          :disabled="loadingAbsenMasuk"
         >
-          <i class="fa-solid fa-right-to-bracket me-2"></i> ABSEN MASUK
+          <span v-if="loadingAbsenMasuk" class="spinner-border spinner-border-sm me-2" role="status" aria-hidden="true"></span>
+          <i v-else class="fa-solid fa-right-to-bracket me-2"></i> 
+          {{ loadingAbsenMasuk ? 'Memverifikasi..' : 'ABSEN MASUK' }}
         </button>
       </div>
     </div>
@@ -108,8 +111,11 @@
       <button 
         class="btn btn-danger w-100 rounded-4 py-3 shadow-sm border-0 mt-3 btn-pulang-submit"
         @click="submitAbsen('Pulang')"
+        :disabled="loadingAbsenPulang"
       >
-        <i class="fa-solid fa-person-walking-arrow-right me-2"></i> ABSEN PULANG
+        <span v-if="loadingAbsenPulang" class="spinner-border spinner-border-sm me-2" role="status" aria-hidden="true"></span>
+        <i v-else class="fa-solid fa-person-walking-arrow-right me-2"></i> 
+        {{ loadingAbsenPulang ? 'Memverifikasi..' : 'ABSEN PULANG' }}
       </button>
     </div>
   </div>
@@ -124,6 +130,8 @@ import Swal from 'sweetalert2'
 const emits = defineEmits(['refresh-stock'])
 
 const refreshing = ref(false)
+const loadingAbsenMasuk = ref(false)
+const loadingAbsenPulang = ref(false)
 const dashboardData = ref({
   penjualan: 'Rp 0',
   pengeluaran: 'Rp 0',
@@ -177,11 +185,8 @@ const refreshAll = async () => {
 }
 
 const submitAbsen = async (jenis = 'Masuk') => {
-  Swal.fire({
-    title: 'Mencatat Kehadiran...',
-    allowOutsideClick: false,
-    didOpen: () => Swal.showLoading()
-  })
+  if (jenis === 'Masuk') loadingAbsenMasuk.value = true
+  else loadingAbsenPulang.value = true
 
   // Mock location for simplification matching original logic
   const payload = {
@@ -195,7 +200,9 @@ const submitAbsen = async (jenis = 'Masuk') => {
   }
 
   const res = await callApi('simpanAbsensi', payload)
-  Swal.close()
+  
+  if (jenis === 'Masuk') loadingAbsenMasuk.value = false
+  else loadingAbsenPulang.value = false
 
   if (res.success) {
     Swal.fire({
@@ -226,6 +233,10 @@ const submitAbsen = async (jenis = 'Masuk') => {
 
 onMounted(() => {
   fetchDashboard()
+})
+
+defineExpose({
+  refreshAll
 })
 </script>
 

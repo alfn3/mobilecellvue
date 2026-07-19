@@ -711,9 +711,9 @@ const openModalLapor = (item, field, sysVal) => {
   
   if (isReported) {
     const reportedVal = isAwal ? item.awalReportedVal : item.topupReportedVal
-    const logRow = isAwal ? item.awalReportedRow : item.topupReportedRow
-    const reportedSys = isAwal ? item.awalReportedSys : item.topupReportedSys
-    
+    const logRow = isAwal ? item.rowAwal : item.rowTopup   // <-- FIX nama field
+    const reportedSys = sysVal   // nilai sistem saat ini (awal/topup)
+
     Swal.fire({
       title: `<span class="fw-bold" style="font-family: 'Outfit', sans-serif; color: #dc3545; font-size: 1.05rem;">Laporan Selisih Stok</span>`,
       html: `
@@ -759,6 +759,9 @@ const openModalLapor = (item, field, sysVal) => {
         cancelButton: 'btn btn-sm btn-secondary fw-bold px-2 py-1 rounded-3'
       }
     }).then(async (result) => {
+      const displayNama = (item.brand && item.brand !== '-' && item.brand.toLowerCase() !== 'umum' && item.brand.toLowerCase() !== 'aksesoris') 
+        ? (String(item.brand).toLowerCase().trim() + "-" + item.nama) : item.nama
+
       if (result.isConfirmed) {
         Swal.fire({
           title: `<span class="fw-bold" style="color: #0d6efd; font-size: 1.05rem;">Revisi Nilai Fisik</span>`,
@@ -784,11 +787,9 @@ const openModalLapor = (item, field, sysVal) => {
             return value
           }
         }).then(async (editResult) => {
-          if (editResult.isConfirmed) {
-            Swal.fire({ title: 'Mengubah Laporan...', didOpen: () => Swal.showLoading() })
-            const displayNama = (item.brand && item.brand !== '-' && item.brand.toLowerCase() !== 'umum' && item.brand.toLowerCase() !== 'aksesoris') 
-              ? (String(item.brand).toLowerCase().trim() + "-" + item.nama) : item.nama
-            const res = await callApi('editLaporanSalah', {
+            if (editResult.isConfirmed) {
+              Swal.fire({ title: 'Mengubah Laporan...', didOpen: () => Swal.showLoading() })
+              const res = await callApi('editLaporanSalah', {
               row: logRow,
               toko: store.user.store,
               produk: displayNama,
@@ -819,7 +820,12 @@ const openModalLapor = (item, field, sysVal) => {
         }).then(async (confirmDelete) => {
           if (confirmDelete.isConfirmed) {
             Swal.fire({ title: 'Menghapus Laporan...', didOpen: () => Swal.showLoading() })
-            const res = await callApi('hapusLaporanSalah', { row: logRow })
+            const res = await callApi('hapusLaporanSalah', { 
+              row: logRow,
+              toko: store.user.store,
+              produk: displayNama,     // <-- tambahkan
+              brand: item.brand || ''  // <-- tambahkan (kalau kamu sudah update cariBarisLogOtomatis di backend)
+            })
             Swal.close()
             if (res.success) { Swal.fire('Sukses', 'Laporan berhasil dihapus!', 'success'); loadStock() }
             else Swal.fire('Gagal', res.msg || 'Terjadi kesalahan.', 'error')

@@ -26,6 +26,7 @@
           v-if="homeMounted"
           v-show="currentTab === 'home'" 
           @refresh-stock="triggerStockRefresh" 
+          ref="homeViewRef"
         />
         <StokView 
           v-if="stokMounted"
@@ -120,6 +121,7 @@ const AkunView  = defineAsyncComponent(() => import('./views/AkunView.vue'))
 const currentTab = ref('home')
 const digitalClock = ref('00:00')
 const stokViewRef = ref(null)
+const homeViewRef = ref(null)
 
 // Lazy mount flags: komponen hanya di-mount saat pertama dikunjungi
 const homeMounted = ref(true)   // home adalah tab default, langsung mount
@@ -181,6 +183,11 @@ const navTo = (tab) => {
   } else if (tab === 'akun') {
     akunMounted.value = true
   }
+
+  if (tab === 'home' && homeViewRef.value) {
+    homeViewRef.value.refreshAll()
+  }
+
   currentTab.value = tab
 }
 
