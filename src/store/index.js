@@ -12,7 +12,7 @@ export const store = reactive({
     jamMasuk: localStorage.getItem('JAM_MASUK') || '-'
   },
   stockCache: [],
-  unsavedChanges: {},
+  unsavedChanges: JSON.parse(localStorage.getItem('UNSAVED_CHANGES')) || {},
   
   // Actions
   setUser(user) {
@@ -42,14 +42,17 @@ export const store = reactive({
   
   updateStockValue(key, value) {
     this.unsavedChanges[key] = value;
+    localStorage.setItem('UNSAVED_CHANGES', JSON.stringify(this.unsavedChanges));
   },
   
   removeUnsavedChange(key) {
     delete this.unsavedChanges[key];
+    localStorage.setItem('UNSAVED_CHANGES', JSON.stringify(this.unsavedChanges));
   },
   
   clearUnsavedChanges() {
     this.unsavedChanges = {};
+    localStorage.removeItem('UNSAVED_CHANGES');
   },
   
   logout() {
@@ -58,6 +61,7 @@ export const store = reactive({
     this.stockCache = [];
     this.unsavedChanges = {};
     
+    localStorage.removeItem('UNSAVED_CHANGES');
     localStorage.removeItem('USER_NAME');
     localStorage.removeItem('STORE_NAME');
     localStorage.removeItem('USER_SHIFT');

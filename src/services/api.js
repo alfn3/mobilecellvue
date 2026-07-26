@@ -21,6 +21,10 @@ export async function callApi(action, payload) {
     return result;
   } catch (error) {
     console.error("API Call Failed:", error);
-    return { success: false, msg: error.message || "Koneksi ke server gagal" };
+    let errorMsg = error.message;
+    if (errorMsg === "Failed to fetch" || (errorMsg && errorMsg.includes("NetworkError"))) {
+      errorMsg = "Tidak ada koneksi internet";
+    }
+    return { success: false, msg: errorMsg || "Koneksi ke server gagal" };
   }
 }

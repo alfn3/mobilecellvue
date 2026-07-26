@@ -393,7 +393,12 @@ const isHideZero = ref(false)
 const currentKat = ref('Perdana')
 
 // Antrian pengeluaran lokal (belum dikirim ke server)
-const pendingExpenses = ref([])
+const savedExpenses = localStorage.getItem('PENDING_EXPENSES')
+const pendingExpenses = ref(savedExpenses ? JSON.parse(savedExpenses) : [])
+
+watch(pendingExpenses, (newVal) => {
+  localStorage.setItem('PENDING_EXPENSES', JSON.stringify(newVal))
+}, { deep: true })
 
 watch(() => props.activeTab, (newTab) => {
   if (newTab === 'pengeluaran') {
