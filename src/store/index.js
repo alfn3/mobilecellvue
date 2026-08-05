@@ -1,5 +1,14 @@
 import { reactive, computed } from 'vue'
 
+const getStoredJSON = (key, fallback) => {
+  try {
+    const item = localStorage.getItem(key)
+    return item ? JSON.parse(item) : fallback
+  } catch (e) {
+    return fallback
+  }
+}
+
 export const store = reactive({
   user: {
     name: localStorage.getItem('USER_NAME') || 'Guest',
@@ -11,8 +20,9 @@ export const store = reactive({
     isAbsen: localStorage.getItem('IS_ABSEN') === 'true',
     jamMasuk: localStorage.getItem('JAM_MASUK') || '-'
   },
-  stockCache: [],
-  unsavedChanges: JSON.parse(localStorage.getItem('UNSAVED_CHANGES')) || {},
+  dashboardCache: getStoredJSON('DASHBOARD_CACHE', null),
+  stockCache: getStoredJSON('STOCK_CACHE', []),
+  unsavedChanges: getStoredJSON('UNSAVED_CHANGES', {}),
   
   // Actions
   setUser(user) {
@@ -36,8 +46,14 @@ export const store = reactive({
     localStorage.setItem('JAM_MASUK', this.status.jamMasuk);
   },
   
+  setDashboardCache(data) {
+    this.dashboardCache = data;
+    localStorage.setItem('DASHBOARD_CACHE', JSON.stringify(data));
+  },
+
   setStockCache(stocks) {
     this.stockCache = stocks;
+    localStorage.setItem('STOCK_CACHE', JSON.stringify(stocks));
   },
   
   updateStockValue(key, value) {
@@ -59,9 +75,12 @@ export const store = reactive({
     this.user = { name: 'Guest', store: '', shift: '', email: '' };
     this.status = { isAbsen: false, jamMasuk: '-' };
     this.stockCache = [];
+    this.dashboardCache = null;
     this.unsavedChanges = {};
     
     localStorage.removeItem('UNSAVED_CHANGES');
+    localStorage.removeItem('STOCK_CACHE');
+    localStorage.removeItem('DASHBOARD_CACHE');
     localStorage.removeItem('USER_NAME');
     localStorage.removeItem('STORE_NAME');
     localStorage.removeItem('USER_SHIFT');

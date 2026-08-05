@@ -556,6 +556,49 @@ function editPengeluaranMobile(data) {
 
 function getDashboardSummary(toko) {
   try {
+    const sName = resolveSheetName(toko);
+    const cacheKey = "dash_sum_" + sName;
+    const cache = CacheService.getScriptCache();
+    const cached = cache.get(cacheKey);
+    if (cached) {
+      return JSON.parse(cached);
+    }
+
+    const ssStok = SpreadsheetApp.openById(CONFIG.STOK_ID);
+    const sheetStok = ssStok.getSheetByName(sName);
+    let pen="0", peng="0", sel="0";
+    if(sheetStok) {
+       // Single batch range fetch (N38:N44) instead of 3 individual RPC calls
+       const vals = sheetStok.getRange("N38:N44").getDisplayValues();
+       pen = (vals[0] && vals[0][0]) || "0";  // N38 (row 38, offset 0)
+       peng = (vals[4] && vals[4][0]) || "0"; // N42 (row 42, offset 4)
+       sel = (vals[6] && vals[6][0]) || "0";  // N44 (row 44, offset 6)
+    }
+    const ssDb = SpreadsheetApp.openById(CONFIG.DB_ID);
+    const sheetInfo = ssDb.getSheetByName("info_pusat");
+    let runningText = "Selamat Bekerja, Semangat!";
+    if(sheetInfo) {
+       const dataInfo = sheetInfo.getDataRange().getValues();
+       let messages = [];
+       for(let i=1; i<dataInfo.length; i++) {
+          if(dataInfo[i][2] === true) { messages.push(dataInfo[i][1]); }
+       }
+       if(messages.length > 0) { runningText = messages.join("   ◉   "); }
+    }
+    const resObj = response(true, "OK", { penjualan: pen, pengeluaran: peng, selisih: sel, info: runningText });
+    cache.put(cacheKey, JSON.stringify(resObj), 30); // Cache 30 detik di server Apps Script
+    return resObj;
+  } catch(e) { return response(false, e.toString()); }
+}
+
+function resolveSheetName(name) {
+  const n = String(name).toLowerCase().trim();
+  if(n === 'm3') return 'toko'; if(n === 'm3 sore') return 'toko sore'; if(n.includes('jaya')) return 'jayacell'; return name;
+}
+function response(success, msg, data = null) { return { success: success, msg: msg, data: data }; }
+
+function getDashboardSummarydebug(toko) {
+  try {
     const ssStok = SpreadsheetApp.openById(CONFIG.STOK_ID);
     const sheetStok = ssStok.getSheetByName(resolveSheetName(toko));
     let pen="0", peng="0", sel="0";
@@ -578,9 +621,3 @@ function getDashboardSummary(toko) {
     return response(true, "OK", { penjualan: pen, pengeluaran: peng, selisih: sel, info: runningText });
   } catch(e) { return response(false, e.toString()); }
 }
-
-function resolveSheetName(name) {
-  const n = String(name).toLowerCase().trim();
-  if(n === 'm3') return 'toko'; if(n === 'm3 sore') return 'toko sore'; if(n.includes('jaya')) return 'jayacell'; return name;
-}
-function response(success, msg, data = null) { return { success: success, msg: msg, data: data }; }

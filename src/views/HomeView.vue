@@ -67,51 +67,61 @@
     <div v-else class="animate-fade">
       <div class="row g-2 mb-4">
         <div class="col-12">
-          <div class="card border-0 shadow-sm rounded-4 bg-white">
-            <div class="card-body p-3 d-flex justify-content-between align-items-center">
-              <div>
-                <div class="text-muted small text-uppercase fw-bold mb-1" style="font-size:0.65rem;">Total Penjualan</div>
-                <div v-if="refreshing" class="placeholder-glow" style="width: 120px; height: 38px; display: flex; align-items: center;">
-                  <span class="placeholder col-8 rounded bg-primary opacity-25" style="height: 1.8rem;"></span>
+          <div class="card border-0 shadow-sm rounded-4 overflow-hidden">
+            <!-- Gradient Header (Total Penjualan) -->
+            <div class="position-relative p-4 overflow-hidden" style="background: linear-gradient(135deg, #4f46e5 0%, #3b82f6 100%);">
+              <!-- Abstract Circles -->
+              <div class="position-absolute top-0 end-0 bg-black rounded-circle" style="width: 120px; height: 120px; transform: translate(30%, -30%); opacity: 0.2;"></div>
+              <div class="position-absolute bottom-0 start-0 bg-black rounded-circle" style="width: 80px; height: 80px; transform: translate(-30%, 30%); opacity: 0.2;"></div>
+              
+              <div class="position-relative z-1 d-flex justify-content-between align-items-center">
+                <div>
+                  <div class="d-flex align-items-center gap-2 mb-1">
+                    <span class="text-white text-opacity-75 small text-uppercase fw-bold" style="font-size:0.7rem; letter-spacing: 0.5px;">Total Penjualan</span>
+                    <span class="badge bg-white bg-opacity-25 text-white border border-white border-opacity-25 rounded-pill px-2 py-1" style="font-size: 0.55rem;">HARI INI</span>
+                  </div>
+                  <div v-if="refreshing" class="placeholder-glow mt-2" style="width: 140px; height: 38px; display: flex; align-items: center;">
+                    <span class="placeholder col-10 rounded bg-white opacity-25" style="height: 2rem;"></span>
+                  </div>
+                  <h2 v-else class="fw-bold text-white mb-0 mt-1" style="text-shadow: 1px 1px 2px rgba(0,0,0,0.15);">{{ dashboardData.penjualan }}</h2>
                 </div>
-                <h3 v-else class="fw-bold text-primary mb-0">{{ dashboardData.penjualan }}</h3>
-              </div>
-              <div class="rounded-circle bg-primary bg-opacity-10 text-primary d-flex align-items-center justify-content-center" style="width: 48px; height: 48px; font-size: 1.2rem;">
-                <i class="fa-solid fa-sack-dollar"></i>
+                <div class="rounded-circle bg-white shadow-sm d-flex align-items-center justify-content-center" style="width: 56px; height: 56px; color: #3b82f6; font-size: 1.5rem;">
+                  <i class="fa-solid fa-sack-dollar"></i>
+                </div>
               </div>
             </div>
-          </div>
-        </div>
-        
-        <div class="col-6">
-          <div class="card border-0 shadow-sm rounded-4 bg-white h-100">
-            <div class="card-body p-3">
-              <span class="text-muted small fw-bold" style="font-size:0.65rem;">PENGELUARAN</span>
-              <div v-if="refreshing" class="placeholder-glow mt-1" style="width: 85px; height: 24px; display: flex; align-items: center;">
-                <span class="placeholder col-10 rounded bg-danger opacity-25" style="height: 1.1rem;"></span>
+            
+            <!-- Clean Body (Kas & Selisih) -->
+            <div class="bg-white p-3">
+              <div class="row g-2">
+                <!-- Kas di Laci -->
+                <div class="col-6 border-end border-light">
+                  <span class="text-muted small fw-bold" style="font-size:0.65rem;">KAS DI LACI</span>
+                  <div v-if="refreshing" class="placeholder-glow mt-1" style="width: 85px; height: 24px; display: flex; align-items: center;">
+                    <span class="placeholder col-10 rounded bg-success opacity-25" style="height: 1.1rem;"></span>
+                  </div>
+                  <h6 v-else class="fw-bold text-dark mb-0 mt-1">{{ displayKasDiLaci }}</h6>
+                </div>
+                
+                <!-- Bersih / Selisih -->
+                <div class="col-6 ps-3">
+                  <span class="text-muted small fw-bold" style="font-size:0.65rem;">BERSIH / SELISIH</span>
+                  <div v-if="refreshing" class="placeholder-glow mt-1" style="width: 85px; height: 24px; display: flex; align-items: center;">
+                    <span class="placeholder col-10 rounded bg-success opacity-25" style="height: 1.1rem;"></span>
+                  </div>
+                  <h6 v-else :class="selisihClass" class="fw-bold mb-0 mt-1">{{ dashboardData.selisih }}</h6>
+                </div>
               </div>
-              <h6 v-else class="fw-bold text-danger mb-0 mt-1">{{ dashboardData.pengeluaran }}</h6>
-            </div>
-          </div>
-        </div>
-        
-        <div class="col-6">
-          <div class="card border-0 shadow-sm rounded-4 bg-white h-100">
-            <div class="card-body p-3">
-              <span class="text-muted small fw-bold" style="font-size:0.65rem;">BERSIH / SELISIH</span>
-              <div v-if="refreshing" class="placeholder-glow mt-1" style="width: 85px; height: 24px; display: flex; align-items: center;">
-                <span class="placeholder col-10 rounded bg-success opacity-25" style="height: 1.1rem;"></span>
-              </div>
-              <h6 v-else :class="selisihClass" class="fw-bold mb-0 mt-1">{{ dashboardData.selisih }}</h6>
             </div>
           </div>
         </div>
       </div>
       
       <button 
-        class="btn btn-danger w-100 rounded-4 py-3 shadow-sm border-0 mt-3 btn-pulang-submit"
+        class="btn btn-danger w-100 rounded-4 py-3 shadow-sm border-0 mt-3"
         @click="submitAbsen('Pulang')"
         :disabled="loadingAbsenPulang"
+        style="background: linear-gradient(to right, #dc3545, #ff6b6b);"
       >
         <span v-if="loadingAbsenPulang" class="spinner-border spinner-border-sm me-2" role="status" aria-hidden="true"></span>
         <i v-else class="fa-solid fa-person-walking-arrow-right me-2"></i> 
@@ -132,9 +142,11 @@ const emits = defineEmits(['refresh-stock'])
 const refreshing = ref(false)
 const loadingAbsenMasuk = ref(false)
 const loadingAbsenPulang = ref(false)
-const dashboardData = ref({
+
+// Instant initialization from persistent cache if available
+const dashboardData = ref(store.dashboardCache || {
   penjualan: 'Rp 0',
-  pengeluaran: 'Rp 0',
+  kasDiLaci: 'Rp 0',
   selisih: 'Rp 0',
   info: 'Memuat Info Pusat...'
 })
@@ -152,6 +164,33 @@ const userInitial = computed(() => {
   return store.user.name ? store.user.name.charAt(0).toUpperCase() : 'U'
 })
 
+const totalUangCash = computed(() => {
+  if (!store.stockCache || store.stockCache.length === 0) return null
+  const cashItems = store.stockCache.filter(item => item.tipe === 'info')
+  if (cashItems.length === 0) return null
+  
+  let total = 0
+  cashItems.forEach(item => {
+    const key = item.row ? `row_${item.row}_${item.tipe}` : `${item.kategori}_${item.nama}`.replace(/[^a-zA-Z0-9]/g, "")
+    let val = 0
+    if (store.unsavedChanges.hasOwnProperty(key)) {
+      val = parseInt(store.unsavedChanges[key]) || 0
+    } else {
+      const clean = String(item.harga || 0).replace(/[^0-9-]/g, '')
+      val = parseInt(clean) || 0
+    }
+    total += val
+  })
+  return total
+})
+
+const displayKasDiLaci = computed(() => {
+  if (totalUangCash.value !== null) {
+    return 'Rp ' + new Intl.NumberFormat('id-ID').format(totalUangCash.value)
+  }
+  return dashboardData.value.kasDiLaci
+})
+
 const selisihClass = computed(() => {
   const raw = parseInt(String(dashboardData.value.selisih).replace(/[^0-9-]/g, '')) || 0
   if (raw < 0) return 'text-danger'
@@ -159,36 +198,67 @@ const selisihClass = computed(() => {
   return 'text-success'
 })
 
-const fetchDashboard = async () => {
+const fetchDashboard = async (isManualRefresh = false) => {
   if (!store.user.store) return
   
-  const res = await callApi('getDashboardSummary', { toko: store.user.store })
-  if (res.success) {
-    dashboardData.value = {
-      penjualan: res.data.penjualan || 'Rp 0',
-      pengeluaran: res.data.pengeluaran || 'Rp 0',
-      selisih: res.data.selisih || 'Rp 0',
-      info: res.data.info || 'Selamat Bekerja, Semangat!'
+  // Eksekusi paralel concurrent requests untuk memotong latency hingga 50%!
+  const fetchStokNeeded = !store.stockCache || store.stockCache.length === 0 || isManualRefresh
+
+  const [resSummary, resStok] = await Promise.all([
+    callApi('getDashboardSummary', { toko: store.user.store }, { forceRefresh: isManualRefresh }),
+    fetchStokNeeded ? callApi('getStok', { toko: store.user.store }, { forceRefresh: isManualRefresh }) : Promise.resolve(null)
+  ])
+
+  if (resSummary && resSummary.success) {
+    const newData = {
+      penjualan: resSummary.data.penjualan || 'Rp 0',
+      kasDiLaci: resSummary.data.pengeluaran || resSummary.data.kasDiLaci || 'Rp 0',
+      selisih: resSummary.data.selisih || 'Rp 0',
+      info: resSummary.data.info || 'Selamat Bekerja, Semangat!'
     }
+    dashboardData.value = newData
+    store.setDashboardCache(newData)
+  }
+
+  if (resStok && resStok.success) {
+    const formatted = resStok.data.map((item, index) => {
+      const n = (item.nama || "").toLowerCase()
+      const k = (item.kategori || "").toLowerCase()
+      let typeFixed = item.tipe || 'barang'
+      
+      if (n.includes('bendelan') || k === 'uang' || typeFixed === 'info') {
+        typeFixed = 'info'
+      } else if (n.includes('saldo') || n.includes('listrik') || k === 'elektrik') {
+        typeFixed = 'saldo'
+      } else if (k === 'pengeluaran') {
+        typeFixed = 'uang'
+      }
+      
+      return {
+        ...item,
+        row: item.row || (index + 2),
+        tipe: typeFixed
+      }
+    })
+    store.setStockCache(formatted)
   }
 }
 
 const refreshAll = async () => {
   refreshing.value = true
-  await fetchDashboard()
+  await fetchDashboard(true)
   if (store.status.isAbsen) {
     emits('refresh-stock')
   }
   setTimeout(() => {
     refreshing.value = false
-  }, 1000)
+  }, 800)
 }
 
 const submitAbsen = async (jenis = 'Masuk') => {
   if (jenis === 'Masuk') loadingAbsenMasuk.value = true
   else loadingAbsenPulang.value = true
 
-  // Mock location for simplification matching original logic
   const payload = {
     nama: store.user.name,
     toko: store.user.store,
@@ -219,10 +289,9 @@ const submitAbsen = async (jenis = 'Masuk') => {
           sudahMasuk: true,
           jamMasuk: jam
         })
-        fetchDashboard()
+        fetchDashboard(true)
         emits('refresh-stock')
       } else {
-        // Pulang -> logout
         store.logout()
       }
     })
@@ -232,7 +301,7 @@ const submitAbsen = async (jenis = 'Masuk') => {
 }
 
 onMounted(() => {
-  fetchDashboard()
+  fetchDashboard(false)
 })
 
 defineExpose({

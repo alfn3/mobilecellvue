@@ -97,6 +97,45 @@
 
       <!-- Render Stock Cards -->
       <template v-else>
+        <!-- Total Uang Cash Summary Card -->
+        <div v-if="activeTab === 'uangcash'" class="col-12 mb-3">
+          <div class="card border-0 shadow rounded-4 text-white position-relative overflow-hidden" style="background: linear-gradient(135deg, #0ea5e9 0%, #0284c7 100%);">
+            <div class="position-absolute top-0 end-0 bg-black rounded-circle" style="width: 150px; height: 150px; transform: translate(30%, -30%); opacity: 0.2;"></div>
+            <div class="position-absolute bottom-0 start-0 bg-black rounded-circle" style="width: 100px; height: 100px; transform: translate(-30%, 30%); opacity: 0.2;"></div>
+            <div class="card-body p-4 position-relative z-1 d-flex justify-content-between align-items-center">
+              <div>
+                <div class="d-flex align-items-center gap-2 mb-1">
+                  <span class="badge bg-white bg-opacity-25 text-white border border-white border-opacity-25 rounded-pill px-3 py-1" style="font-size: 0.65rem; letter-spacing: 1px;">KAS HARI INI</span>
+                </div>
+                <h2 class="fw-bold mb-0 mt-2 text-white" style="text-shadow: 1px 1px 2px rgba(0,0,0,0.2);">{{ formatRp(totalUangCash) }}</h2>
+                <div class="small text-white text-opacity-75 mt-1" style="font-size: 0.75rem;">Total seluruh pecahan tunai</div>
+              </div>
+              <div class="rounded-circle bg-white shadow-sm d-flex align-items-center justify-content-center" style="width: 56px; height: 56px; color: #0284c7; font-size: 1.5rem;">
+                <i class="fa-solid fa-wallet"></i>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Total Pengeluaran Summary Card -->
+        <div v-if="activeTab === 'pengeluaran'" class="col-12 mb-3">
+          <div class="card border-0 shadow rounded-4 text-white position-relative overflow-hidden" style="background: linear-gradient(135deg, #f43f5e 0%, #be123c 100%);">
+            <div class="position-absolute top-0 end-0 bg-black rounded-circle" style="width: 150px; height: 150px; transform: translate(30%, -30%); opacity: 0.2;"></div>
+            <div class="position-absolute bottom-0 start-0 bg-black rounded-circle" style="width: 100px; height: 100px; transform: translate(-30%, 30%); opacity: 0.2;"></div>
+            <div class="card-body p-4 position-relative z-1 d-flex justify-content-between align-items-center">
+              <div>
+                <div class="d-flex align-items-center gap-2 mb-1">
+                  <span class="badge bg-white bg-opacity-25 text-white border border-white border-opacity-25 rounded-pill px-3 py-1" style="font-size: 0.65rem; letter-spacing: 1px;">TOTAL PENGELUARAN</span>
+                </div>
+                <h2 class="fw-bold mb-0 mt-2 text-white" style="text-shadow: 1px 1px 2px rgba(0,0,0,0.2);">{{ formatRp(totalPengeluaran) }}</h2>
+                <div class="small text-white text-opacity-75 mt-1" style="font-size: 0.75rem;">Seluruh biaya hari ini</div>
+              </div>
+              <div class="rounded-circle bg-white shadow-sm d-flex align-items-center justify-content-center" style="width: 56px; height: 56px; color: #be123c; font-size: 1.5rem;">
+                <i class="fa-solid fa-receipt"></i>
+              </div>
+            </div>
+          </div>
+        </div>
 
         <!-- Pending Expenses (antrian yang belum disimpan) -->
         <template v-if="activeTab === 'pengeluaran' && pendingExpenses.length > 0">
@@ -500,6 +539,31 @@ const getTerjualSaldo = (item) => {
 
 const revealedCash = ref([])
 
+const totalUangCash = computed(() => {
+  if (!store.stockCache || store.stockCache.length === 0) return 0
+  const cashItems = store.stockCache.filter(item => item.tipe === 'info')
+  let total = 0
+  cashItems.forEach(item => {
+    total += getLocalValue(item)
+  })
+  return total
+})
+
+const totalPengeluaran = computed(() => {
+  let total = 0
+  if (store.stockCache && store.stockCache.length > 0) {
+    store.stockCache.forEach(item => {
+      if (item.tipe === 'uang') {
+        total += getNumericValue(item.harga)
+      }
+    })
+  }
+  pendingExpenses.value.forEach(item => {
+    total += getNumericValue(item.nominal)
+  })
+  return total
+})
+
 const isCashVisible = (item) => {
   const localVal = getLocalValue(item)
   if (getNumericValue(localVal) > 0) return true
@@ -591,11 +655,12 @@ const handleInputMoney = (item, event) => {
 }
 
 // Fetch Stock
-const loadStock = async () => {
+const loadStock = async (isManualRefresh = false) => {
   if (!store.user.store) return
+  
   loading.value = true
   
-  const res = await callApi('getStok', { toko: store.user.store })
+  const res = await callApi('getStok', { toko: store.user.store }, { forceRefresh: isManualRefresh })
   loading.value = false
   
   if (res.success) {
