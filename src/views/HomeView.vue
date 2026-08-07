@@ -147,6 +147,7 @@ const loadingAbsenPulang = ref(false)
 const dashboardData = ref(store.dashboardCache || {
   penjualan: 'Rp 0',
   kasDiLaci: 'Rp 0',
+  pengeluaran: 'Rp 0',
   selisih: 'Rp 0',
   info: 'Memuat Info Pusat...'
 })
@@ -212,7 +213,8 @@ const fetchDashboard = async (isManualRefresh = false) => {
   if (resSummary && resSummary.success) {
     const newData = {
       penjualan: resSummary.data.penjualan || 'Rp 0',
-      kasDiLaci: resSummary.data.pengeluaran || resSummary.data.kasDiLaci || 'Rp 0',
+      kasDiLaci: resSummary.data.kasDiLaci || 'Rp 0',
+      pengeluaran: resSummary.data.pengeluaran || 'Rp 0',
       selisih: resSummary.data.selisih || 'Rp 0',
       info: resSummary.data.info || 'Selamat Bekerja, Semangat!'
     }
