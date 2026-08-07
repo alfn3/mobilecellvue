@@ -470,10 +470,10 @@ function getStokMobileOptimized(toko, forceRefresh = false) {
       };
     });
 
-    // ✅ Cache results (30-45 menit)
+    // ✅ Cache results (6 jam - 21600 detik) karena cache dihapus otomatis saat ada perubahan data
     const jsonStr = JSON.stringify(results);
     if (jsonStr.length < 100000) {
-      cache.put(cacheKey, jsonStr, 1800);
+      cache.put(cacheKey, jsonStr, 21600);
     }
 
     return response(true, "Data Loaded", results);
@@ -491,10 +491,8 @@ function getReportedItemsFromCache(sheetName, toko, forceRefresh = false) {
   const cacheKey = 'REPORTED_' + sheetName;
   const cache = CacheService.getScriptCache();
   
-  if (!forceRefresh) {
-    const cached = cache.get(cacheKey);
-    if (cached) return JSON.parse(cached);
-  }
+  const cached = cache.get(cacheKey);
+  if (cached) return JSON.parse(cached);
 
   let reportedItems = {};
   
@@ -572,8 +570,8 @@ function getReportedItemsFromCache(sheetName, toko, forceRefresh = false) {
     Logger.log("Error in getReportedItems: " + err.toString());
   }
 
-  // ✅ Cache hasil (2 jam)
-  cache.put(cacheKey, JSON.stringify(reportedItems), 7200);
+  // ✅ Cache hasil (6 jam) karena otomatis terhapus saat ada laporan baru
+  cache.put(cacheKey, JSON.stringify(reportedItems), 21600);
   return reportedItems;
 }
 
