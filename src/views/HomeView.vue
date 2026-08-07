@@ -130,7 +130,11 @@
       <div v-if="insightSelisih && insightSelisih.isMinus" class="bg-white border-start border-4 border-danger rounded-3 shadow-sm mb-4 p-3 animate-fade">
         <div class="d-flex align-items-center mb-2">
           <i class="fa-solid fa-circle-exclamation text-danger fs-6 me-2"></i>
-          <span class="fw-bold text-dark" style="font-size: 0.8rem;">Cek Ulang Stok Berikut:</span>
+          <span class="fw-bold text-dark" style="font-size: 0.8rem;">Stok Akhir Belum Diisi / Lupa Input:</span>
+        </div>
+        <div class="small text-muted mb-2" style="font-size: 0.7rem; line-height: 1.3;">
+          <span class="d-block mb-1">&bull; Uang Kas / Pengeluaran mungkin belum diinput.</span>
+          <span class="d-block">&bull; Sisa stok akhir barang di bawah ini masih kosong (0):</span>
         </div>
         <div class="d-flex flex-column gap-2 mt-3">
           <div v-for="(item, idx) in insightSelisih.topItems" :key="idx" class="d-flex justify-content-between align-items-center bg-light rounded-3 p-2 border border-light">
@@ -262,24 +266,33 @@ const insightSelisih = computed(() => {
   const selisih = computedSelisih.value
   if (selisih === null || selisih >= -5000) return null // Only trigger if minus > 5000
   
-  let salesItems = []
+  let emptyStockItems = []
   const parseNum = (val) => parseInt(String(val).replace(/[^0-9-]/g, '')) || 0
   
   store.stockCache.forEach(item => {
     if (item.tipe === 'barang' || item.tipe === 'saldo') {
       const key = item.row ? `row_${item.row}_${item.tipe}` : `${item.kategori}_${item.nama}`.replace(/[^a-zA-Z0-9]/g, "")
-      let stok = parseNum(item.stok)
+      
+      let rawStok = null
       if (store.unsavedChanges.hasOwnProperty(key)) {
-        stok = parseNum(store.unsavedChanges[key])
+        rawStok = store.unsavedChanges[key]
+      } else {
+        rawStok = item.stok
       }
+      
+      let stok = parseNum(rawStok)
+      let isUnfilled = (rawStok === null || rawStok === undefined || String(rawStok).trim() === '' || stok === 0)
+      
       let awal = parseNum(item.awal)
       let topup = parseNum(item.topup)
       let terjual = (awal + topup) - stok
       let harga = item.tipe === 'barang' ? parseNum(item.harga) : 1
       
       let nominal = terjual * harga
-      if (nominal > 0) {
-        salesItems.push({
+      
+      // Prioritize items that have 0/empty stock but have Awal/Topup (potential forgot to input)
+      if (isUnfilled && nominal > 0) {
+        emptyStockItems.push({
           nama: item.nama,
           terjual: terjual,
           nominal: nominal
@@ -288,11 +301,12 @@ const insightSelisih = computed(() => {
     }
   })
   
-  salesItems.sort((a, b) => b.nominal - a.nominal)
+  // Sort by highest potential nominal impact
+  emptyStockItems.sort((a, b) => b.nominal - a.nominal)
   
   return {
     isMinus: true,
-    topItems: salesItems.slice(0, 3)
+    topItems: emptyStockItems.slice(0, 4) // Show up to 4 items
   }
 })
 

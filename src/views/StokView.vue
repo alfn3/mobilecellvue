@@ -231,17 +231,17 @@
               </div>
               <div class="col-3">
                 <div 
-                  class="box-info box-topup cursor-pointer" 
-                  :class="{ 'reported-error': item.topupReported }"
+                  class="box-info cursor-pointer" 
+                  :class="[getNumericValue(item.topup) > 0 ? 'box-topup' : 'box-awal', { 'reported-error': item.topupReported }]"
                   @click="openModalLapor(item, 'Topup', item.topup)"
                 >
-                  <span class="label-tiny">
+                  <span class="label-tiny" :class="{'opacity-75': getNumericValue(item.topup) === 0}">
                     TOPUP 
                     <span v-if="item.topupReported" class="text-danger fw-bold ms-1" style="font-size:0.65rem;">
                       ⚠️{{ item.topupReportedVal }}
                     </span>
                   </span>
-                  <span class="val-tiny">+{{ item.topup }}</span>
+                  <span class="val-tiny" :class="{'opacity-75': getNumericValue(item.topup) === 0}">+{{ item.topup }}</span>
                 </div>
               </div>
               <div class="col-6 ps-2">
@@ -295,17 +295,17 @@
               </div>
               <div class="col-3">
                 <div 
-                  class="box-info box-topup cursor-pointer" 
-                  :class="{ 'reported-error': item.topupReported }"
+                  class="box-info cursor-pointer" 
+                  :class="[getNumericValue(item.topup) > 0 ? 'box-topup' : 'box-awal', { 'reported-error': item.topupReported }]"
                   @click="openModalLapor(item, 'Topup', item.topup)"
                 >
-                  <span class="label-tiny">
+                  <span class="label-tiny" :class="{'opacity-75': getNumericValue(item.topup) === 0}">
                     TOPUP 
                     <span v-if="item.topupReported" class="text-danger fw-bold ms-1" style="font-size:0.6rem;">
                       ⚠️{{ formatRp(item.topupReportedVal) }}
                     </span>
                   </span>
-                  <span class="val-tiny">+{{ formatRp(getNumericValue(item.topup)) }}</span>
+                  <span class="val-tiny" :class="{'opacity-75': getNumericValue(item.topup) === 0}">+{{ formatRp(getNumericValue(item.topup)) }}</span>
                 </div>
               </div>
               <div class="col-6 ps-2">
