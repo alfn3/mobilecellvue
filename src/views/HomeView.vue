@@ -232,6 +232,13 @@ const totalPengeluaran = computed(() => {
       total += nominal
     }
   })
+  // Tambahkan juga pengeluaran yang masih di antrian (belum disave)
+  try {
+    const pending = JSON.parse(localStorage.getItem('PENDING_EXPENSES') || '[]')
+    pending.forEach(exp => {
+      total += parseInt(String(exp.nominal).replace(/[^0-9]/g, '')) || 0
+    })
+  } catch(e) {}
   return total
 })
 
@@ -243,14 +250,13 @@ const totalUangCash = computed(() => {
   let total = 0
   cashItems.forEach(item => {
     const key = item.row ? `row_${item.row}_${item.tipe}` : `${item.kategori}_${item.nama}`.replace(/[^a-zA-Z0-9]/g, "")
-    let lembar = 0
+    let nominal = 0
     if (store.unsavedChanges.hasOwnProperty(key)) {
-      lembar = parseInt(store.unsavedChanges[key]) || 0
+      nominal = parseInt(String(store.unsavedChanges[key]).replace(/[^0-9-]/g, '')) || 0
     } else {
-      lembar = parseInt(String(item.harga || 0).replace(/[^0-9-]/g, '')) || 0
+      nominal = parseInt(String(item.harga || 0).replace(/[^0-9-]/g, '')) || 0
     }
-    const pecahan = parseInt(String(item.nama).replace(/[^0-9]/g, '')) || 0
-    total += (pecahan * lembar)
+    total += nominal
   })
   return total
 })

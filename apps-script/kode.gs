@@ -450,7 +450,7 @@ function getStokMobileOptimized(toko, forceRefresh = false) {
       const nama = String(item.nama || "").trim();
       const hasBrand = brand && brand !== "-" && brand.toLowerCase() !== "umum" && brand.toLowerCase() !== "aksesoris";
 
-      const pKeyWithBrand = (hasBrand ? `${brand}-${nama}` : nama)
+      const pKeyWithBrand = (hasBrand ? `${brand} ${nama}` : nama)
         .toLowerCase().replace(/\s+/g, " ").replace(/\s*-\s*/g, "-").trim();
       const nameWithoutBrand = nama.toLowerCase().replace(/\s+/g, " ").trim();
 
