@@ -83,7 +83,7 @@
                   <div v-if="refreshing" class="placeholder-glow mt-2" style="width: 140px; height: 38px; display: flex; align-items: center;">
                     <span class="placeholder col-10 rounded bg-white opacity-25" style="height: 2rem;"></span>
                   </div>
-                  <h2 v-else class="fw-bold text-white mb-0 mt-1" style="text-shadow: 1px 1px 2px rgba(0,0,0,0.15);">{{ dashboardData.penjualan }}</h2>
+                  <h2 v-else class="fw-bold text-white mb-0 mt-1" style="text-shadow: 1px 1px 2px rgba(0,0,0,0.15);">{{ displayPenjualan }}</h2>
                 </div>
                 <div class="rounded-circle bg-white shadow-sm d-flex align-items-center justify-content-center" style="width: 56px; height: 56px; color: #3b82f6; font-size: 1.5rem;">
                   <i class="fa-solid fa-sack-dollar"></i>
@@ -109,7 +109,7 @@
                   <div v-if="refreshing" class="placeholder-glow mt-1" style="width: 85px; height: 24px; display: flex; align-items: center;">
                     <span class="placeholder col-10 rounded bg-success opacity-25" style="height: 1.1rem;"></span>
                   </div>
-                  <h6 v-else :class="selisihClass" class="fw-bold mb-0 mt-1">{{ dashboardData.selisih }}</h6>
+                  <h6 v-else :class="selisihClass" class="fw-bold mb-0 mt-1">{{ displaySelisih }}</h6>
                 </div>
               </div>
             </div>
@@ -165,6 +165,53 @@ const userInitial = computed(() => {
   return store.user.name ? store.user.name.charAt(0).toUpperCase() : 'U'
 })
 
+const totalPenjualan = computed(() => {
+  if (!store.stockCache || store.stockCache.length === 0) return null
+  let total = 0
+  store.stockCache.forEach(item => {
+    if (item.tipe === 'barang') {
+      const key = item.row ? `row_${item.row}_${item.tipe}` : `${item.kategori}_${item.nama}`.replace(/[^a-zA-Z0-9]/g, "")
+      let stok = parseInt(item.stok) || 0
+      if (store.unsavedChanges.hasOwnProperty(key)) {
+        stok = parseInt(store.unsavedChanges[key]) || 0
+      }
+      let awal = parseInt(item.awal) || 0
+      let topup = parseInt(item.topup) || 0
+      let terjual = (awal + topup) - stok
+      let harga = parseInt(String(item.harga).replace(/[^0-9]/g, '')) || 0
+      if (terjual > 0) total += (terjual * harga)
+    } else if (item.tipe === 'saldo') {
+      const key = item.row ? `row_${item.row}_${item.tipe}` : `${item.kategori}_${item.nama}`.replace(/[^a-zA-Z0-9]/g, "")
+      let stok = parseInt(item.stok) || 0
+      if (store.unsavedChanges.hasOwnProperty(key)) {
+        stok = parseInt(store.unsavedChanges[key]) || 0
+      }
+      let awal = parseInt(item.awal) || 0
+      let topup = parseInt(item.topup) || 0
+      let terjual = (awal + topup) - stok
+      if (terjual > 0) total += terjual
+    }
+  })
+  return total
+})
+
+const totalPengeluaran = computed(() => {
+  if (!store.stockCache || store.stockCache.length === 0) return null
+  let total = 0
+  store.stockCache.forEach(item => {
+    // Pengeluaran di-format menjadi tipe='uang' oleh HomeView
+    if (item.tipe === 'uang' && (item.kategori || '').toLowerCase() === 'pengeluaran') {
+      const key = item.row ? `row_${item.row}_${item.tipe}` : `${item.kategori}_${item.nama}`.replace(/[^a-zA-Z0-9]/g, "")
+      let nominal = parseInt(String(item.harga).replace(/[^0-9]/g, '')) || 0
+      if (store.unsavedChanges.hasOwnProperty(key)) {
+        nominal = parseInt(String(store.unsavedChanges[key]).replace(/[^0-9]/g, '')) || 0
+      }
+      total += nominal
+    }
+  })
+  return total
+})
+
 const totalUangCash = computed(() => {
   if (!store.stockCache || store.stockCache.length === 0) return null
   const cashItems = store.stockCache.filter(item => item.tipe === 'info')
@@ -173,23 +220,44 @@ const totalUangCash = computed(() => {
   let total = 0
   cashItems.forEach(item => {
     const key = item.row ? `row_${item.row}_${item.tipe}` : `${item.kategori}_${item.nama}`.replace(/[^a-zA-Z0-9]/g, "")
-    let val = 0
+    let lembar = 0
     if (store.unsavedChanges.hasOwnProperty(key)) {
-      val = parseInt(store.unsavedChanges[key]) || 0
+      lembar = parseInt(store.unsavedChanges[key]) || 0
     } else {
-      const clean = String(item.harga || 0).replace(/[^0-9-]/g, '')
-      val = parseInt(clean) || 0
+      lembar = parseInt(String(item.harga || 0).replace(/[^0-9-]/g, '')) || 0
     }
-    total += val
+    const pecahan = parseInt(String(item.nama).replace(/[^0-9]/g, '')) || 0
+    total += (pecahan * lembar)
   })
   return total
 })
 
+const computedSelisih = computed(() => {
+  if (totalPenjualan.value === null || totalUangCash.value === null) return null
+  const peng = totalPengeluaran.value || 0
+  return (totalUangCash.value + peng) - totalPenjualan.value
+})
+
+const formatRp = (num) => {
+  let isNeg = num < 0
+  let abs = Math.abs(num)
+  let str = "Rp " + abs.toLocaleString('id-ID')
+  return isNeg ? "-" + str : str
+}
+
+const displayPenjualan = computed(() => {
+  if (totalPenjualan.value !== null) return formatRp(totalPenjualan.value)
+  return dashboardData.value.penjualan
+})
+
 const displayKasDiLaci = computed(() => {
-  if (totalUangCash.value !== null) {
-    return 'Rp ' + new Intl.NumberFormat('id-ID').format(totalUangCash.value)
-  }
+  if (totalUangCash.value !== null) return formatRp(totalUangCash.value)
   return dashboardData.value.kasDiLaci
+})
+
+const displaySelisih = computed(() => {
+  if (computedSelisih.value !== null) return formatRp(computedSelisih.value)
+  return dashboardData.value.selisih
 })
 
 const selisihClass = computed(() => {
@@ -202,47 +270,46 @@ const selisihClass = computed(() => {
 const fetchDashboard = async (isManualRefresh = false) => {
   if (!store.user.store) return
   
-  // Eksekusi paralel concurrent requests untuk memotong latency hingga 50%!
   const fetchStokNeeded = !store.stockCache || store.stockCache.length === 0 || isManualRefresh
 
-  const [resSummary, resStok] = await Promise.all([
-    callApi('getDashboardSummary', { toko: store.user.store }, { forceRefresh: isManualRefresh }),
-    fetchStokNeeded ? callApi('getStok', { toko: store.user.store }, { forceRefresh: isManualRefresh }) : Promise.resolve(null)
-  ])
-
-  if (resSummary && resSummary.success) {
-    const newData = {
-      penjualan: resSummary.data.penjualan || 'Rp 0',
-      kasDiLaci: resSummary.data.kasDiLaci || 'Rp 0',
-      pengeluaran: resSummary.data.pengeluaran || 'Rp 0',
-      selisih: resSummary.data.selisih || 'Rp 0',
-      info: resSummary.data.info || 'Selamat Bekerja, Semangat!'
-    }
-    dashboardData.value = newData
-    store.setDashboardCache(newData)
-  }
-
-  if (resStok && resStok.success) {
-    const formatted = resStok.data.map((item, index) => {
-      const n = (item.nama || "").toLowerCase()
-      const k = (item.kategori || "").toLowerCase()
-      let typeFixed = item.tipe || 'barang'
-      
-      if (n.includes('bendelan') || k === 'uang' || typeFixed === 'info') {
-        typeFixed = 'info'
-      } else if (n.includes('saldo') || n.includes('listrik') || k === 'elektrik') {
-        typeFixed = 'saldo'
-      } else if (k === 'pengeluaran') {
-        typeFixed = 'uang'
-      }
-      
-      return {
-        ...item,
-        row: item.row || (index + 2),
-        tipe: typeFixed
+  // Panggil getDashboardSummary di background murni hanya untuk mendapatkan text berjalan (info pusat)
+  callApi('getDashboardSummary', { toko: store.user.store }, { forceRefresh: isManualRefresh })
+    .then(resSummary => {
+      if (resSummary && resSummary.success) {
+        dashboardData.value.info = resSummary.data.info || 'Selamat Bekerja, Semangat!'
+        store.setDashboardCache({
+          ...dashboardData.value,
+          info: dashboardData.value.info
+        })
       }
     })
-    store.setStockCache(formatted)
+
+  // Jika perlu memuat data stok, muat sekarang. (Hitungan dashboard akan otomatis update berkat computed property)
+  if (fetchStokNeeded) {
+    const resStok = await callApi('getStok', { toko: store.user.store }, { forceRefresh: isManualRefresh })
+    
+    if (resStok && resStok.success) {
+      const formatted = resStok.data.map((item, index) => {
+        const n = (item.nama || "").toLowerCase()
+        const k = (item.kategori || "").toLowerCase()
+        let typeFixed = item.tipe || 'barang'
+        
+        if (n.includes('bendelan') || k === 'uang' || typeFixed === 'info') {
+          typeFixed = 'info'
+        } else if (n.includes('saldo') || n.includes('listrik') || k === 'elektrik') {
+          typeFixed = 'saldo'
+        } else if (k === 'pengeluaran') {
+          typeFixed = 'uang'
+        }
+        
+        return {
+          ...item,
+          row: item.row || (index + 2),
+          tipe: typeFixed
+        }
+      })
+      store.setStockCache(formatted)
+    }
   }
 }
 

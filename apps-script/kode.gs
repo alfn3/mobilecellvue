@@ -440,7 +440,7 @@ function getStokMobileOptimized(toko, forceRefresh = false) {
     }
 
     // ✅ Get reported items dari cache (2-hour TTL)
-    const reportedItems = getReportedItemsFromCache(sheetName, toto, forceRefresh);
+    const reportedItems = getReportedItemsFromCache(sheetName, toko, forceRefresh);
 
     // Apply reported flags
     results = results.map(item => {
