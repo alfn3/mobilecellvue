@@ -739,20 +739,25 @@ const saveAll = () => {
 
       // 2. Simpan Pengeluaran (jika ada)
       if (pendingExpenses.value.length > 0) {
-        let failCount = 0
+        let failedExpenses = []
+        let lastErrorMsg = ''
         for (const expense of pendingExpenses.value) {
           const resPeng = await callApi('tambahPengeluaran', {
             toko: store.user.store,
             nominal: expense.nominal,
             ket: expense.ket
           })
-          if (!resPeng.success) failCount++
+          if (!resPeng.success) {
+            failedExpenses.push(expense)
+            lastErrorMsg = resPeng.msg || 'Gagal menyimpan'
+          }
         }
-        if (failCount === 0) {
-          pendingExpenses.value = []
-        } else {
+        
+        pendingExpenses.value = failedExpenses
+        
+        if (failedExpenses.length > 0) {
           allSuccess = false
-          errMsgs.push(`Pengeluaran: ${failCount} entri gagal disimpan`)
+          errMsgs.push(`Pengeluaran: ${failedExpenses.length} entri gagal (${lastErrorMsg})`)
         }
       }
 

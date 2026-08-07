@@ -27,7 +27,7 @@ export async function callApi(action, payload, options = {}) {
       headers: {
         'Content-Type': 'text/plain;charset=utf-8'
       },
-      body: JSON.stringify({ action, payload })
+      body: JSON.stringify({ action, payload: { ...payload, forceRefresh } })
     });
     
     if (!response.ok) {
