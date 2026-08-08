@@ -15,6 +15,8 @@ const CONFIG = {
   STOK_ID: '1m3Kzzw0H84NVxBXmhIvcrQDQ6q2MmciTmbwV_cqKtJY',
   FOTO_FOLDER_ID: '16nDd0ozjr6eR3JcKmyBEnB-16HDqa9jb',
   NOTIF_EMAIL: 'alfiannurhuda77@gmail.com',
+  FONNTE_TOKEN: 'vNkPPChGgZQZXzJxE927', // Masukkan Token API Fonnte Anda di sini
+  FONNTE_TARGET: '0895355347768', // Masukkan Nomor WhatsApp Tujuan di sini (Misal: '08123456789')
   MAX_EXECUTION_TIME: 25000,
   SLOW_EXECUTION_THRESHOLD: 5000,
   
@@ -131,6 +133,9 @@ function doPost(e) {
 
       case 'getAnalisisMingguan':
         result = getAnalisisMingguan(payload.toko);
+        break;
+      case 'getInfoPusat':
+        result = getInfoPusat();
         break;
       default:
         result = response(false, "Action tidak ditemukan");
@@ -747,11 +752,18 @@ function simpanLaporanSalah(data) {
     
     try { sheet.getRange(sheet.getLastRow(), 8).insertCheckboxes(); } catch(e){}
 
-    if (CONFIG.NOTIF_EMAIL) {
-      try {
-        MailApp.sendEmail(CONFIG.NOTIF_EMAIL, `[Laporan] ${data.toko} - ${displayNama}`, `Laporan baru: ${displayNama}`);
-      } catch(err) {}
-    }
+    const cleanTimestamp = Utilities.formatDate(new Date(), Session.getScriptTimeZone(), "dd/MM/yyyy HH:mm:ss");
+    const kategoriStr = data.kategori ? data.kategori + ' ' : '';
+    const brandStr = (data.brand && data.brand !== '-') ? data.brand + ' | ' : '';
+    const cleanProduk = data.brand && data.brand !== '-' ? String(data.nama).replace(new RegExp('^' + data.brand + '[- ]?', 'i'), '').trim() : data.nama;
+    const textNotif = `🚨 *Laporan Salah (${data.toko})*\n\n` +
+                      `📅 *Waktu:* ${cleanTimestamp}\n` +
+                      `📦 *Produk:* ${kategoriStr}${brandStr}${cleanProduk}\n` +
+                      `📝 *Masalah:* Lapor ${data.tipeMasalah}\n` +
+                      `✅ *Koreksi:* ${data.nilaiBaru} (Sistem: ${data.nilaiLama})\n` +
+                      `👤 *Pelapor:* ${data.user}`;
+
+    kirimNotifWA(textNotif);
 
     // ✅ Invalidate cache
     CacheService.getScriptCache().remove('REPORTED_' + resolveSheetName(data.toko));
@@ -776,6 +788,17 @@ function editLaporanSalahMobile(data) {
 
     sheet.getRange(row, 6).setValue(`Lapor ${data.tipeMasalah}: ${data.nilaiBaru} (Sys:${data.nilaiLama})`);
     
+    const cleanTimestamp = Utilities.formatDate(new Date(), Session.getScriptTimeZone(), "dd/MM/yyyy HH:mm:ss");
+    const kategoriStr = data.kategori ? data.kategori + ' ' : '';
+    const brandStr = (data.brand && data.brand !== '-') ? data.brand + ' | ' : '';
+    const cleanProduk = data.brand && data.brand !== '-' ? String(data.produk).replace(new RegExp('^' + data.brand + '[- ]?', 'i'), '').trim() : data.produk;
+    const textNotif = `✏️ *Laporan Diedit (${data.toko})*\n\n` +
+                      `📅 *Waktu:* ${cleanTimestamp}\n` +
+                      `📦 *Produk:* ${kategoriStr}${brandStr}${cleanProduk}\n` +
+                      `📝 *Koreksi Baru:* ${data.nilaiBaru} (Sys: ${data.nilaiLama})\n` +
+                      `👤 *Editor:* ${data.user}`;
+    kirimNotifWA(textNotif);
+
     CacheService.getScriptCache().remove('REPORTED_' + resolveSheetName(data.toko));
     return response(true, "Laporan diupdate", null, { clientAction: "REFRESH_CACHE" });
   } catch(e) { 
@@ -796,6 +819,16 @@ function hapusLaporanSalahMobile(data) {
 
     sheet.deleteRow(row);
     
+    const cleanTimestamp = Utilities.formatDate(new Date(), Session.getScriptTimeZone(), "dd/MM/yyyy HH:mm:ss");
+    const kategoriStr = data.kategori ? data.kategori + ' ' : '';
+    const brandStr = (data.brand && data.brand !== '-') ? data.brand + ' | ' : '';
+    const cleanProduk = data.brand && data.brand !== '-' ? String(data.produk).replace(new RegExp('^' + data.brand + '[- ]?', 'i'), '').trim() : data.produk;
+    const textNotif = `🗑️ *Laporan Dihapus (${data.toko})*\n\n` +
+                      `📅 *Waktu:* ${cleanTimestamp}\n` +
+                      `📦 *Produk:* ${kategoriStr}${brandStr}${cleanProduk}\n` +
+                      `👤 *Penghapus:* ${data.user}`;
+    kirimNotifWA(textNotif);
+
     CacheService.getScriptCache().remove('REPORTED_' + resolveSheetName(data.toko));
     return response(true, "Laporan dihapus", null, { clientAction: "REFRESH_CACHE" });
   } catch(e) { 
@@ -905,6 +938,22 @@ function editPengeluaranMobileOptimized(data) {
 // ============================================================================
 // ANALISIS STOK MINGGUAN (SNAPSHOT)
 // ============================================================================
+
+function kirimNotifWA(pesan) {
+  if (CONFIG.FONNTE_TOKEN && CONFIG.FONNTE_TARGET) {
+    try {
+      const responseFonnte = UrlFetchApp.fetch('https://api.fonnte.com/send', {
+        method: 'post',
+        headers: { 'Authorization': CONFIG.FONNTE_TOKEN },
+        payload: { target: CONFIG.FONNTE_TARGET, message: pesan },
+        muteHttpExceptions: true
+      });
+      Logger.log("Fonnte Response: " + responseFonnte.getContentText());
+    } catch(err) {
+      Logger.log("Fonnte Error: " + err.toString());
+    }
+  }
+}
 
 /**
  * Rekam snapshot data "Terjual" harian untuk setiap barang per toko.
@@ -1074,4 +1123,25 @@ function setupSnapshotTrigger() {
     .create();
     
   Logger.log("✅ Trigger snapshot harian berhasil di-setup (pukul 23.00-24.00).");
+}
+/**
+ * Jalankan fungsi ini SEKALI SECARA MANUAL dari editor Apps Script 
+ * untuk memberikan izin (Authorization) ke layanan external (Fonnte API).
+ */
+function tesKoneksiFonnte() {
+  if (!CONFIG.FONNTE_TOKEN) {
+    Logger.log("Token Fonnte belum diisi di CONFIG.");
+    return;
+  }
+  try {
+    const res = UrlFetchApp.fetch('https://api.fonnte.com/send', {
+      method: 'post',
+      headers: { 'Authorization': CONFIG.FONNTE_TOKEN },
+      payload: { target: CONFIG.FONNTE_TARGET, message: "Tes koneksi sistem berhasil." },
+      muteHttpExceptions: true
+    });
+    Logger.log("Hasil tes koneksi: " + res.getContentText());
+  } catch (err) {
+    Logger.log("Error tes koneksi: " + err.toString());
+  }
 }

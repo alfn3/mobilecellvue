@@ -869,10 +869,13 @@ const openModalLapor = (item, field, sysVal) => {
               const res = await callApi('editLaporanSalah', {
               row: logRow,
               toko: store.user.store,
-              produk: displayNama,
+              produk: item.nama,
+              kategori: item.kategori || '',
+              brand: item.brand || '',
               tipeMasalah: field,
               nilaiLama: reportedSys,
-              nilaiBaru: isSaldo ? editResult.value : parseInt(editResult.value)
+              nilaiBaru: isSaldo ? editResult.value : parseInt(editResult.value),
+              user: store.user.name
             })
             Swal.close()
             if (res.success) { Swal.fire('Sukses', 'Laporan berhasil diupdate!', 'success'); loadStock() }
@@ -900,8 +903,10 @@ const openModalLapor = (item, field, sysVal) => {
             const res = await callApi('hapusLaporanSalah', { 
               row: logRow,
               toko: store.user.store,
-              produk: displayNama,     // <-- tambahkan
-              brand: item.brand || ''  // <-- tambahkan (kalau kamu sudah update cariBarisLogOtomatis di backend)
+              produk: item.nama,     // <-- tambahkan
+              kategori: item.kategori || '',
+              brand: item.brand || '', // <-- tambahkan (kalau kamu sudah update cariBarisLogOtomatis di backend)
+              user: store.user.name
             })
             Swal.close()
             if (res.success) { Swal.fire('Sukses', 'Laporan berhasil dihapus!', 'success'); loadStock() }
