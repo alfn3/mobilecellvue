@@ -112,9 +112,9 @@
 import { ref, computed, onMounted, onUnmounted, defineAsyncComponent } from 'vue'
 import { store } from './store'
 import Swal from 'sweetalert2'
+import HomeView from './views/HomeView.vue'
 
 const LoginView = defineAsyncComponent(() => import('./views/LoginView.vue'))
-const HomeView  = defineAsyncComponent(() => import('./views/HomeView.vue'))
 const StokView  = defineAsyncComponent(() => import('./views/StokView.vue'))
 const AkunView  = defineAsyncComponent(() => import('./views/AkunView.vue'))
 
@@ -185,7 +185,8 @@ const navTo = (tab) => {
   }
 
   if (tab === 'home' && homeViewRef.value) {
-    homeViewRef.value.refreshAll()
+    homeViewRef.value.fetchAnalisis?.()
+    homeViewRef.value.fetchInfoPusat?.()
   }
 
   currentTab.value = tab

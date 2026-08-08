@@ -9,7 +9,6 @@
         </marquee>
       </div>
     </div>
-
     <!-- Profile Hero Card -->
     <div class="card border-0 shadow rounded-4 mb-3 text-white card-hero">
       <div class="position-absolute top-0 start-0 translate-middle bg-warning opacity-10 rounded-circle circle-bg"></div>
@@ -65,6 +64,8 @@
 
     <!-- Dashboard Panel (If checked-in) -->
     <div v-else class="animate-fade">
+      
+
       <div class="row g-2 mb-4">
         <div class="col-12">
           <div class="card border-0 shadow-sm overflow-hidden" style="border-radius: 1.25rem; transform: translateZ(0);">
@@ -80,10 +81,7 @@
                     <span class="text-white text-opacity-75 small text-uppercase fw-bold" style="font-size:0.7rem; letter-spacing: 0.5px;">Total Penjualan</span>
                     <span class="badge bg-white bg-opacity-25 text-white border border-white border-opacity-25 rounded-pill px-2 py-1" style="font-size: 0.55rem;">HARI INI</span>
                   </div>
-                  <div v-if="refreshing" class="placeholder-glow mt-2" style="width: 140px; height: 38px; display: flex; align-items: center;">
-                    <span class="placeholder col-10 rounded bg-white opacity-25" style="height: 2rem;"></span>
-                  </div>
-                  <h2 v-else class="fw-bold text-white mb-0 mt-1" style="text-shadow: 1px 1px 2px rgba(0,0,0,0.15);">{{ displayPenjualan }}</h2>
+                  <h2 class="fw-bold text-white mb-0 mt-1" style="text-shadow: 1px 1px 2px rgba(0,0,0,0.15);">{{ displayPenjualan }}</h2>
                 </div>
                 <div class="rounded-circle bg-white shadow-sm d-flex align-items-center justify-content-center" style="width: 56px; height: 56px; color: #3b82f6; font-size: 1.5rem;">
                   <i class="fa-solid fa-sack-dollar"></i>
@@ -101,10 +99,7 @@
                   </div>
                   <div>
                     <span class="text-muted fw-bold d-block" style="font-size:0.6rem; letter-spacing: 0.5px;">KAS DI LACI</span>
-                    <div v-if="refreshing" class="placeholder-glow mt-1" style="width: 80px;">
-                      <span class="placeholder col-12 rounded bg-success opacity-25"></span>
-                    </div>
-                    <h6 v-else class="fw-bold text-dark mb-0 mt-1" style="font-size: 0.95rem;">{{ displayKasDiLaci }}</h6>
+                    <h6 class="fw-bold text-dark mb-0 mt-1" style="font-size: 0.95rem;">{{ displayKasDiLaci }}</h6>
                   </div>
                 </div>
                 <!-- Bersih / Selisih -->
@@ -114,10 +109,7 @@
                   </div>
                   <div>
                     <span class="text-muted fw-bold d-block" style="font-size:0.6rem; letter-spacing: 0.5px;">SELISIH</span>
-                    <div v-if="refreshing" class="placeholder-glow mt-1" style="width: 80px;">
-                      <span class="placeholder col-12 rounded bg-primary opacity-25"></span>
-                    </div>
-                    <h6 v-else :class="selisihClass" class="fw-bold mb-0 mt-1" style="font-size: 0.95rem;">{{ displaySelisih }}</h6>
+                    <h6 :class="selisihClass" class="fw-bold mb-0 mt-1" style="font-size: 0.95rem;">{{ displaySelisih }}</h6>
                   </div>
                 </div>
               </div>
@@ -126,25 +118,114 @@
         </div>
       </div>
       
-      <!-- Insight Selisih Minus -->
-      <div v-if="insightSelisih && insightSelisih.isMinus" class="bg-white border-start border-4 border-danger rounded-3 shadow-sm mb-4 p-3 animate-fade">
-        <div class="d-flex align-items-center mb-2">
-          <i class="fa-solid fa-circle-exclamation text-danger fs-6 me-2"></i>
-          <span class="fw-bold text-dark" style="font-size: 0.8rem;">Stok Akhir Belum Diisi / Lupa Input:</span>
+      <!-- Analisis Card -->
+      <div v-if="loadingAnalisis" class="card border-0 shadow-sm rounded-4 mb-4 bg-white border border-warning" style="border-width: 2px !important;">
+        <div class="card-body p-3 d-flex align-items-center gap-3">
+          <div class="rounded-circle bg-warning bg-opacity-25 placeholder-glow" style="width: 48px; height: 48px;">
+            <span class="placeholder w-100 h-100 rounded-circle"></span>
+          </div>
+          <div class="w-100 placeholder-glow">
+            <span class="placeholder col-4 rounded mb-1"></span><br>
+            <span class="placeholder col-7 rounded"></span>
+          </div>
         </div>
-        <div class="small text-muted mb-2" style="font-size: 0.7rem; line-height: 1.3;">
-          <span class="d-block mb-1">&bull; Uang Kas / Pengeluaran mungkin belum diinput.</span>
-          <span class="d-block">&bull; Sisa stok akhir barang di bawah ini masih kosong (0):</span>
+      </div>
+      <div v-else-if="filteredAnalisis.length > 0" class="card border-0 shadow-sm rounded-4 mb-4 bg-white border border-warning" style="border-width: 2px !important;">
+        <div class="card-body p-3 d-flex justify-content-between align-items-center">
+          <div class="d-flex align-items-center gap-3">
+            <div class="rounded-circle bg-warning bg-opacity-25 d-flex align-items-center justify-content-center text-warning" style="width: 48px; height: 48px;">
+              <i class="fa-solid fa-chart-line fs-5"></i>
+            </div>
+            <div>
+              <h6 class="fw-bold text-dark mb-0">Analisis Stok</h6>
+              <span class="small text-danger fw-bold">{{ filteredAnalisis.length }} Indikasi Salah Lapor!</span>
+            </div>
+          </div>
+          <button class="btn btn-warning btn-sm fw-bold rounded-pill shadow-sm px-3" @click="bukaAnalisis">Cek</button>
         </div>
-        <div class="d-flex flex-column gap-2 mt-3">
-          <div v-for="(item, idx) in insightSelisih.topItems" :key="idx" class="d-flex justify-content-between align-items-center bg-light rounded-3 p-2 border border-light">
-            <span class="fw-semibold text-dark text-truncate pe-2" style="max-width: 65%; font-size: 0.75rem;">{{ item.nama }}</span>
-            <div class="text-end">
-              <span class="fw-bold text-dark d-block" style="font-size: 0.75rem;">{{ formatRp(item.nominal) }}</span>
-              <span class="text-muted" style="font-size: 0.65rem;">Terjual: {{ item.terjual }}</span>
+      </div>
+      <div v-else class="card border-0 shadow-sm rounded-4 mb-4 bg-white border border-success" style="border-width: 2px !important;">
+        <div class="card-body p-3 d-flex justify-content-between align-items-center">
+          <div class="d-flex align-items-center gap-3">
+            <div class="rounded-circle bg-success bg-opacity-25 d-flex align-items-center justify-content-center text-success" style="width: 48px; height: 48px;">
+              <i class="fa-solid fa-check-circle fs-5"></i>
+            </div>
+            <div>
+              <h6 class="fw-bold text-dark mb-0">Analisis Stok</h6>
+              <span class="small text-success fw-bold">Penjualan Wajar & Aman</span>
+            </div>
+          </div>
+          <button class="btn btn-success btn-sm fw-bold rounded-pill shadow-sm px-3" @click="bukaAnalisis">Cek</button>
+        </div>
+      </div>
+    </div>
+
+  <!-- Modal Analisis Mingguan -->
+  <div class="modal fade" id="modalAnalisisHome" tabindex="-1" aria-hidden="true" ref="modalAnalisisRef">
+    <div class="modal-dialog modal-dialog-centered modal-dialog-scrollable">
+      <div class="modal-content border-0 shadow-lg" style="border-radius: 16px;">
+        <div class="modal-header bg-warning text-dark border-0">
+          <h5 class="modal-title fw-bold d-flex align-items-center gap-2">
+            <i class="fa-solid fa-chart-line"></i> Analisis Selisih Mingguan
+          </h5>
+          <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+        </div>
+        
+        <div class="modal-body bg-light p-3">
+          <div v-if="loadingAnalisis" class="text-center py-5">
+            <div class="spinner-border text-warning" role="status"></div>
+            <p class="mt-2 text-muted fw-bold small">Menganalisis Data...</p>
+          </div>
+          
+          <div v-else-if="analisisData.length === 0" class="text-center py-5">
+            <i class="fa-solid fa-folder-open fs-1 text-muted opacity-50 mb-3"></i>
+            <h6 class="fw-bold text-secondary">Data Belum Cukup</h6>
+            <p class="small text-muted mb-0">Sistem butuh waktu beberapa hari merekam data stok akhir untuk menampilkan rata-rata.</p>
+          </div>
+          
+          <div v-else>
+            <div class="alert alert-info border-0 shadow-sm mb-3 rounded-4 d-flex gap-3 align-items-center">
+              <i class="fa-solid fa-circle-info fs-3 text-info"></i>
+              <div class="small">
+                Menampilkan anomali penjualan hari ini (sangat tinggi/rendah) dibandingkan rata-rata 7 hari terakhir. Berguna untuk mendeteksi salah lapor awal/topup.
+              </div>
+            </div>
+            
+            <div v-for="item in filteredAnalisis" :key="item.nama" class="card border-0 shadow-sm rounded-4 mb-3">
+              <div class="card-body p-3">
+                <div class="d-flex justify-content-between align-items-start mb-2">
+                  <div>
+                    <span class="badge bg-light text-dark border me-1">{{ item.kategori }}</span>
+                    <span class="badge bg-secondary">{{ item.brand }}</span>
+                  </div>
+                </div>
+                <h6 class="fw-bold text-dark mb-3">{{ item.nama }}</h6>
+                
+                <div class="row g-2 text-center">
+                  <div class="col-6">
+                    <div class="p-2 bg-light rounded-3">
+                      <div class="small text-muted mb-1">Rata-rata 7 Hari</div>
+                      <div class="fw-bold fs-5 text-primary">{{ item.rataRata }}</div>
+                    </div>
+                  </div>
+                  <div class="col-6">
+                    <div class="p-2 rounded-3" :class="getAnomaliColor(item)">
+                      <div class="small mb-1" :class="item.isAnomali ? 'text-white' : 'text-muted'">Terjual Hari Ini</div>
+                      <div class="fw-bold fs-5">{{ item.terjualHariIni }}</div>
+                    </div>
+                  </div>
+                </div>
+              </div>
             </div>
           </div>
         </div>
+        
+        <div class="modal-footer border-0">
+          <button type="button" class="btn btn-light rounded-pill px-4 fw-bold w-100" data-bs-dismiss="modal">
+            Tutup
+          </button>
+        </div>
+      </div>
       </div>
     </div>
   </div>
@@ -161,6 +242,11 @@ const emits = defineEmits(['refresh-stock'])
 const refreshing = ref(false)
 const loadingAbsenMasuk = ref(false)
 const loadingAbsenPulang = ref(false)
+
+const modalAnalisisRef = ref(null)
+let modalAnalisisInstance = null
+const analisisData = ref([])
+const loadingAnalisis = ref(false)
 
 // Instant initialization from persistent cache if available
 const dashboardData = ref(store.dashboardCache || {
@@ -267,55 +353,6 @@ const computedSelisih = computed(() => {
   return (totalUangCash.value + peng) - totalPenjualan.value
 })
 
-// Calculate top items for negative selisih diagnostic
-const insightSelisih = computed(() => {
-  const selisih = computedSelisih.value
-  if (selisih === null || selisih >= -5000) return null // Only trigger if minus > 5000
-  
-  let emptyStockItems = []
-  const parseNum = (val) => parseInt(String(val).replace(/[^0-9-]/g, '')) || 0
-  
-  store.stockCache.forEach(item => {
-    if (item.tipe === 'barang' || item.tipe === 'saldo') {
-      const key = item.row ? `row_${item.row}_${item.tipe}` : `${item.kategori}_${item.nama}`.replace(/[^a-zA-Z0-9]/g, "")
-      
-      let rawStok = null
-      if (store.unsavedChanges.hasOwnProperty(key)) {
-        rawStok = store.unsavedChanges[key]
-      } else {
-        rawStok = item.stok
-      }
-      
-      let stok = parseNum(rawStok)
-      let isUnfilled = (rawStok === null || rawStok === undefined || String(rawStok).trim() === '' || stok === 0)
-      
-      let awal = parseNum(item.awal)
-      let topup = parseNum(item.topup)
-      let terjual = (awal + topup) - stok
-      let harga = item.tipe === 'barang' ? parseNum(item.harga) : 1
-      
-      let nominal = terjual * harga
-      
-      // Prioritize items that have 0/empty stock but have Awal/Topup (potential forgot to input)
-      if (isUnfilled && nominal > 0) {
-        emptyStockItems.push({
-          nama: item.nama,
-          terjual: terjual,
-          nominal: nominal
-        })
-      }
-    }
-  })
-  
-  // Sort by highest potential nominal impact
-  emptyStockItems.sort((a, b) => b.nominal - a.nominal)
-  
-  return {
-    isMinus: true,
-    topItems: emptyStockItems.slice(0, 4) // Show up to 4 items
-  }
-})
-
 const formatRp = (num) => {
   let isNeg = num < 0
   let abs = Math.abs(num)
@@ -345,12 +382,91 @@ const selisihClass = computed(() => {
   return 'text-success'                // Hijau
 })
 
+// === Logika Analisis Mingguan ===
+const fetchAnalisis = async () => {
+  if (!store.user.store) return;
+  loadingAnalisis.value = true;
+  try {
+    const result = await callApi('getAnalisisMingguan', { toko: store.user.store })
+    if (result.success && result.data) {
+      analisisData.value = result.data;
+    }
+  } catch (e) {
+    console.error("Gagal load analisis:", e)
+  } finally {
+    loadingAnalisis.value = false;
+  }
+}
+
+const filteredAnalisis = computed(() => {
+  if (!analisisData.value.length || !store.stockCache) return []
+  
+  const parseNum = (val) => parseInt(String(val).replace(/[^0-9-]/g, '')) || 0
+  
+  const combinedData = analisisData.value.map(item => {
+    // Cari barang ini di stock cache
+    const matchingStok = store.stockCache.find(s => s.nama === item.nama)
+    let terjualHariIni = 0
+    if (matchingStok) {
+      const key = matchingStok.row ? `row_${matchingStok.row}_${matchingStok.tipe}` : `${matchingStok.kategori}_${matchingStok.nama}`.replace(/[^a-zA-Z0-9]/g, "")
+      
+      let rawStok = null
+      if (store.unsavedChanges.hasOwnProperty(key)) {
+        rawStok = store.unsavedChanges[key]
+      } else {
+        rawStok = matchingStok.stok
+      }
+      
+      let stok = parseNum(rawStok)
+      let awal = parseNum(matchingStok.awal)
+      let topup = parseNum(matchingStok.topup)
+      
+      let isUnfilled = (rawStok === null || rawStok === undefined || String(rawStok).trim() === '')
+      if (isUnfilled && stok === 0) {
+        terjualHariIni = 0; // Belum diisi, anggap 0 supaya tidak langsung merah
+      } else {
+        terjualHariIni = (awal + topup) - stok;
+      }
+    }
+    
+    return {
+      ...item,
+      terjualHariIni,
+      isAnomali: Math.abs(terjualHariIni - item.rataRata) >= Math.max(2, item.rataRata * 0.5)
+    }
+  })
+  
+  const anomaliSaja = combinedData.filter(d => d.isAnomali)
+  return anomaliSaja.sort((a, b) => b.terjualHariIni - a.terjualHariIni)
+})
+
+const getAnomaliColor = (item) => {
+  if (!item.isAnomali) return 'bg-light';
+  if (item.terjualHariIni > item.rataRata) return 'bg-danger text-white shadow-sm';
+  return 'bg-warning text-dark shadow-sm';
+}
+
+const bukaAnalisis = () => {
+  if (modalAnalisisInstance) modalAnalisisInstance.show()
+  // if empty, try fetching again
+  if (analisisData.value.length === 0) fetchAnalisis()
+}
+
+const fetchInfoPusat = async (isManualRefresh = false) => {
+  if (!store.user.store) return
+  const res = await callApi('getInfoPusat', { toko: store.user.store }, { forceRefresh: isManualRefresh })
+  if (res && res.success) {
+    dashboardData.value.info = res.data.info || 'Belum ada info pusat'
+    store.setDashboardCache(dashboardData.value)
+  }
+}
+
 const fetchDashboard = async (isManualRefresh = false) => {
   if (!store.user.store) return
   
-  const fetchStokNeeded = !store.stockCache || store.stockCache.length === 0
+  const fetchStokNeeded = isManualRefresh || !store.stockCache || store.stockCache.length === 0
 
-  // Jika perlu memuat data stok, muat sekarang. (Hitungan dashboard akan otomatis update berkat computed property)
+  // Jika perlu memuat data stok (atau user memaksa refresh), muat sekarang.
   if (fetchStokNeeded) {
     const resStok = await callApi('getStok', { toko: store.user.store }, { forceRefresh: isManualRefresh })
     
@@ -376,6 +492,9 @@ const fetchDashboard = async (isManualRefresh = false) => {
       })
       store.setStockCache(formatted)
     }
+    
+    // Fetch info running text
+    await fetchInfoPusat(isManualRefresh)
   }
 }
 
@@ -434,11 +553,17 @@ const submitAbsen = async (jenis = 'Masuk') => {
 }
 
 onMounted(() => {
+  if (typeof bootstrap !== 'undefined' && modalAnalisisRef.value) {
+    modalAnalisisInstance = new bootstrap.Modal(modalAnalisisRef.value)
+  }
   fetchDashboard(false)
+  fetchAnalisis()
 })
 
 defineExpose({
-  refreshAll
+  refreshAll,
+  fetchAnalisis,
+  fetchInfoPusat
 })
 </script>
 

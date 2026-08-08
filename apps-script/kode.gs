@@ -1,16 +1,13 @@
 /**
  * ============================================================================
- * KARYAWAN APP - BACKEND LOGIC (FINAL OPTIMIZED - NO LOCK)
+ * BACKEND - HYBRID CACHING IMPLEMENTATION
  * ============================================================================
  * 
- * Perbaikan Utama:
- * ✅ Removed lock (already safe - per-user sheets per-day)
- * ✅ Added timeout handling
- * ✅ Improved cache management
- * ✅ Added data validation
- * ✅ Optimized dashboard calculation
- * ✅ Added execution metrics logging
- * ✅ Setup log archival system
+ * Perbaikan:
+ * ✅ Add metadata untuk client (cache status, TTL, timestamp)
+ * ✅ Smart cache invalidation
+ * ✅ Return signal untuk client action
+ * ✅ Cache validation
  */
 
 const CONFIG = {
@@ -18,12 +15,17 @@ const CONFIG = {
   STOK_ID: '1m3Kzzw0H84NVxBXmhIvcrQDQ6q2MmciTmbwV_cqKtJY',
   FOTO_FOLDER_ID: '16nDd0ozjr6eR3JcKmyBEnB-16HDqa9jb',
   NOTIF_EMAIL: 'alfiannurhuda77@gmail.com',
-  MAX_EXECUTION_TIME: 25000, // 25 sec (5s buffer dari 30s limit)
-  SLOW_EXECUTION_THRESHOLD: 5000 // Alert jika > 5 sec
+  MAX_EXECUTION_TIME: 25000,
+  SLOW_EXECUTION_THRESHOLD: 5000,
+  
+  // ✅ Cache configuration
+  CACHE_TTL_STOK: 1800,        // 30 menit untuk stok
+  CACHE_TTL_DASHBOARD: 300,    // 5 menit untuk dashboard
+  CACHE_TTL_REPORTED: 7200     // 2 jam untuk laporan
 };
 
 // ============================================================================
-// EXECUTION TIMER (Timeout Management)
+// EXECUTION TIMER
 // ============================================================================
 
 class ExecutionTimer {
@@ -33,8 +35,7 @@ class ExecutionTimer {
   }
 
   isTimeout() {
-    const elapsed = new Date().getTime() - this.startTime;
-    return elapsed > this.maxTime;
+    return (new Date().getTime() - this.startTime) > this.maxTime;
   }
 
   getElapsed() {
@@ -57,16 +58,12 @@ class ExecutionTimer {
     
     Logger.log(`${level} [${status}] ${actionName}: ${elapsed}ms`);
     
-    // Log to spreadsheet jika slow atau error
     if (this.isSlow() || status === "TIMEOUT") {
       logExecutionMetric(actionName, elapsed, status);
     }
   }
 }
 
-/**
- * Log execution metrics ke spreadsheet untuk monitoring
- */
 function logExecutionMetric(action, executionTime, status) {
   try {
     const ss = SpreadsheetApp.openById(CONFIG.DB_ID);
@@ -84,20 +81,9 @@ function logExecutionMetric(action, executionTime, status) {
 }
 
 // ============================================================================
-// MAIN REQUEST HANDLER (NO LOCK NEEDED!)
+// MAIN REQUEST HANDLER
 // ============================================================================
 
-function doGet(e) {
-  return HtmlService.createTemplateFromFile('Index').evaluate()
-    .setTitle('Karyawan App')
-    .addMetaTag('viewport', 'width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no')
-    .setXFrameOptionsMode(HtmlService.XFrameOptionsMode.ALLOWALL);
-}
-
-/**
- * ✅ MAIN ENDPOINT - NO LOCK NEEDED!
- * Setiap user punya sheet sendiri per hari, tidak ada race condition
- */
 function doPost(e) {
   const timer = new ExecutionTimer();
   
@@ -106,11 +92,8 @@ function doPost(e) {
     const action = request.action;
     const payload = request.payload;
     
-    // ✅ REMOVED: No lock needed! Per-user sheets prevent race conditions
-    
     let result = {};
 
-    // Route handler
     switch(action) {
       case 'login':
         result = loginUser(payload);
@@ -145,17 +128,17 @@ function doPost(e) {
       case 'editPengeluaran':
         result = editPengeluaranMobileOptimized(payload);
         break;
-      case 'getDashboardSummary':
-        result = getDashboardSummaryOptimized(payload.toko, payload.forceRefresh);
+
+      case 'getAnalisisMingguan':
+        result = getAnalisisMingguan(payload.toko);
         break;
       default:
         result = response(false, "Action tidak ditemukan");
     }
 
-    // ✅ Timeout check before returning
     if (timer.isTimeout()) {
       Logger.log(`⚠️ TIMEOUT RISK: Action ${action} approaching limit`);
-      result = response(false, "Execution timeout: hasil tidak dapat dijamin");
+      result = response(false, "Execution timeout");
     }
 
     timer.logMetric(action);
@@ -172,190 +155,7 @@ function doPost(e) {
 }
 
 // ============================================================================
-// AUTHENTICATION
-// ============================================================================
-
-function loginUser(payload) {
-  try {
-    const emailInput = String(payload.email).toLowerCase().trim();
-    const passInput = String(payload.password).trim();
-
-    if (!emailInput || !passInput) return response(false, "Email dan Password wajib diisi.");
-
-    const ss = SpreadsheetApp.openById(CONFIG.DB_ID);
-    const shValidasi = ss.getSheetByName("validasi");
-    if (!shValidasi) return response(false, "Sheet validasi tidak ditemukan.");
-    
-    const dataVal = shValidasi.getDataRange().getValues();
-    let user = null;
-
-    for (let i = 1; i < dataVal.length; i++) {
-      const emailSheet = String(dataVal[i][0]).toLowerCase().trim();
-      const passSheet = String(dataVal[i][5]);
-      const statusSheet = String(dataVal[i][4]).toLowerCase().trim();
-      
-      if (emailSheet === emailInput && passSheet === passInput) {
-        if (statusSheet !== 'aktif') return response(false, "Akun Anda dinonaktifkan.");
-        
-        user = { 
-          nama: dataVal[i][1], shift: dataVal[i][2], 
-          konter: dataVal[i][3], email: emailInput 
-        }; 
-        break;
-      }
-    }
-
-    if (!user) return response(false, "Email atau Password salah.");
-
-    // Get location coordinates
-    let target = { lat: null, long: null, radius: 50 };
-    const sheetLoc = ss.getSheetByName("konter_list");
-    if (sheetLoc) {
-      const dataLoc = sheetLoc.getDataRange().getValues();
-      for (let j = 1; j < dataLoc.length; j++) {
-        if (String(dataLoc[j][0]).toLowerCase() === String(user.konter).toLowerCase()) {
-          target.lat = String(dataLoc[j][7]).replace(',', '.').trim();
-          target.long = String(dataLoc[j][8]).replace(',', '.').trim();
-          const rad = parseInt(dataLoc[j][9]);
-          if (!isNaN(rad) && rad > 0) target.radius = rad;
-          break;
-        }
-      }
-    }
-
-    // Check if user already checked in today
-    const sheetAbsen = ss.getSheetByName("data_absensi");
-    let sudahMasuk = false;
-    let jamMasuk = "-";
-    if (sheetAbsen) {
-      const dataAbsen = sheetAbsen.getDataRange().getValues();
-      const today = new Date().toDateString();
-      for (let k = dataAbsen.length - 1; k >= 1; k--) {
-        const rowDateObj = new Date(dataAbsen[k][0]);
-        if (String(dataAbsen[k][1]) === user.nama && rowDateObj.toDateString() === today && String(dataAbsen[k][2]) === 'Masuk') {
-          sudahMasuk = true;
-          jamMasuk = Utilities.formatDate(rowDateObj, Session.getScriptTimeZone(), "HH:mm");
-          break;
-        }
-      }
-    }
-
-    return response(true, "Login Sukses", { user, target, status: { sudahMasuk, jamMasuk } });
-  } catch (e) { 
-    return response(false, "Error Login: " + e.toString()); 
-  }
-}
-
-function gantiKataSandi(payload) {
-  try {
-    const ss = SpreadsheetApp.openById(CONFIG.DB_ID);
-    const sheet = ss.getSheetByName("validasi");
-    const data = sheet.getDataRange().getValues();
-    const emailUser = payload.email.toLowerCase().trim();
-    let rowIndex = -1;
-
-    for (let i = 1; i < data.length; i++) {
-      if (String(data[i][0]).toLowerCase().trim() === emailUser) {
-        if (String(data[i][5]) !== String(payload.sandiLama)) {
-          return { success: false, msg: "Kata sandi lama salah!" };
-        }
-        rowIndex = i + 1;
-        break;
-      }
-    }
-
-    if (rowIndex === -1) return { success: false, msg: "User tidak ditemukan." };
-    sheet.getRange(rowIndex, 6).setValue(payload.sandiBaru);
-    return { success: true, msg: "Kata sandi berhasil diperbarui!" };
-  } catch (e) {
-    return { success: false, msg: "Error: " + e.toString() };
-  }
-}
-
-// ============================================================================
-// ATTENDANCE
-// ============================================================================
-
-function simpanAbsensi(payload) {
-  try {
-    const ss = SpreadsheetApp.openById(CONFIG.DB_ID);
-    let sheet = ss.getSheetByName("data_absensi");
-    if (!sheet) {
-      sheet = ss.insertSheet("data_absensi");
-      sheet.appendRow(["Waktu", "Nama", "Status", "Lokasi", "Link Foto", "Keterangan", "Lat", "Long"]);
-    }
-
-    let fotoUrl = "-";
-    if (payload.fotoBase64 && CONFIG.FOTO_FOLDER_ID.length > 5) {
-      try {
-        const folder = DriveApp.getFolderById(CONFIG.FOTO_FOLDER_ID);
-        const blob = Utilities.newBlob(
-          Utilities.base64Decode(payload.fotoBase64.split(',')[1]),
-          'image/png',
-          `Absen_${payload.nama}_${Date.now()}.png`
-        );
-        const file = folder.createFile(blob);
-        fotoUrl = file.getUrl();
-      } catch (err) {
-        Logger.log("Upload foto gagal: " + err);
-        fotoUrl = "Upload gagal";
-      }
-    }
-
-    const timestamp = "'" + Utilities.formatDate(new Date(), Session.getScriptTimeZone(), "dd/MM/yyyy HH:mm:ss");
-    sheet.appendRow([
-      timestamp, payload.nama, payload.jenis, payload.toko || "-", 
-      fotoUrl, payload.ket, "'" + payload.lat, "'" + payload.long
-    ]);
-
-    return response(true, "Absensi Berhasil!");
-  } catch (e) {
-    return response(false, "Gagal Absen: " + e.toString());
-  }
-}
-
-// ============================================================================
-// DATA VALIDATION
-// ============================================================================
-
-function validateStockData(item) {
-  if (!item || typeof item !== 'object') {
-    return { valid: false, errors: ["Invalid item object"] };
-  }
-  
-  const awal = parseInt(item.awal) || 0;
-  const topup = parseInt(item.topup) || 0;
-  const stok = parseInt(item.stok) || 0;
-  
-  const errors = [];
-  
-  if (awal < 0) errors.push("Awal tidak boleh negatif");
-  if (topup < 0) errors.push("Topup tidak boleh negatif");
-  if (stok < 0) errors.push("Stok tidak boleh negatif");
-  
-  if (stok > (awal + topup)) {
-    errors.push(`Stok (${stok}) > Awal+Topup (${awal}+${topup})`);
-  }
-  
-  return {
-    valid: errors.length === 0,
-    errors: errors
-  };
-}
-
-function calculateTerjual(awal, topup, stok) {
-  const a = parseInt(awal) || 0;
-  const t = parseInt(topup) || 0;
-  const s = parseInt(stok) || 0;
-  
-  if (a < 0 || t < 0 || s < 0) return 0;
-  
-  const terjual = (a + t) - s;
-  return Math.max(0, terjual); // No negative
-}
-
-// ============================================================================
-// STOK DATA LOADING (OPTIMIZED)
+// ✅ OPTIMIZED: getStokMobileOptimized dengan HYBRID CACHING
 // ============================================================================
 
 function getStokMobileOptimized(toko, forceRefresh = false) {
@@ -364,10 +164,25 @@ function getStokMobileOptimized(toko, forceRefresh = false) {
     const cacheKey = 'STOK_' + sheetName;
     const cache = CacheService.getScriptCache();
     
-    // ✅ Check cache first
+    // ✅ Check cache first (ALWAYS)
     if (!forceRefresh) {
       const cachedData = cache.get(cacheKey);
-      if (cachedData) return response(true, "Sukses (Cached)", JSON.parse(cachedData));
+      if (cachedData) {
+        try {
+          const parsed = JSON.parse(cachedData);
+          
+          // ✅ Return with cache metadata
+          return response(true, "Sukses (Cached)", parsed, {
+            cached: true,
+            timestamp: new Date().getTime(),
+            ttl: CONFIG.CACHE_TTL_STOK * 1000,  // Convert to ms
+            clientAction: null  // No action needed
+          });
+        } catch (parseErr) {
+          Logger.log("Cache parse error, falling through to full load");
+          cache.remove(cacheKey);
+        }
+      }
     }
 
     const ss = SpreadsheetApp.openById(CONFIG.STOK_ID);
@@ -377,10 +192,10 @@ function getStokMobileOptimized(toko, forceRefresh = false) {
     // ✅ Single batch range read (1 RPC call!)
     const allData = sheet.getRange("A1:S307").getDisplayValues();
     
-    const rawValues = allData.slice(2, 307).map(r => r.slice(1, 9));  // B3:I307
-    const pengData = allData.slice(14, 28).map(r => r.slice(13, 18)); // N15:R28
-    const uangData = allData.slice(47, 57).map(r => r.slice(10, 12)); // K48:L57
-    const saldoData = allData.slice(64, 65).map(r => r.slice(13, 19))[0]; // N65:S65
+    const rawValues = allData.slice(2, 307).map(r => r.slice(1, 9));
+    const pengData = allData.slice(14, 28).map(r => r.slice(13, 18));
+    const uangData = allData.slice(47, 57).map(r => r.slice(10, 12));
+    const saldoData = allData.slice(64, 65).map(r => r.slice(13, 19))[0];
 
     const START_ROW_RAW = 3;
     let results = [];
@@ -439,25 +254,27 @@ function getStokMobileOptimized(toko, forceRefresh = false) {
       }); 
     }
 
-    // ✅ Get reported items dari cache (2-hour TTL)
+    // ✅ Get reported items dari cache (separate cache layer)
     const reportedItems = getReportedItemsFromCache(sheetName, toko, forceRefresh);
 
-    // Apply reported flags
+    // Apply reported flags dengan helper function
     results = results.map(item => {
       if (item.tipe !== "barang" && item.tipe !== "saldo") return item;
 
-      const brand = String(item.brand || "").trim();
-      const nama = String(item.nama || "").trim();
-      const hasBrand = brand && brand !== "-" && brand.toLowerCase() !== "umum" && brand.toLowerCase() !== "aksesoris";
+      const { key: pKeyWithBrand } = normalizeProductKey(item.brand, item.nama);
+      
+      const nameWithoutBrand = String(item.nama || "")
+        .trim().replace(/\s+/g, "-").toLowerCase().replace(/-+/g, "-").trim();
 
-      const pKeyWithBrand = (hasBrand ? `${brand} ${nama}` : nama)
-        .toLowerCase().replace(/\s+/g, " ").replace(/\s*-\s*/g, "-").trim();
-      const nameWithoutBrand = nama.toLowerCase().replace(/\s+/g, " ").trim();
-
-      const reported = reportedItems[pKeyWithBrand] || reportedItems[nameWithoutBrand] || {
-        awal: false, topup: false, keteranganAwal: "", 
-        keteranganTopup: "", barisAwal: "", barisTopup: ""
-      };
+      let reported = reportedItems[pKeyWithBrand];
+      if (!reported) reported = reportedItems[nameWithoutBrand];
+      if (!reported) {
+        reported = {
+          awal: false, topup: false, 
+          keteranganAwal: "", keteranganTopup: "", 
+          barisAwal: "", barisTopup: ""
+        };
+      }
 
       return {
         ...item,
@@ -470,29 +287,70 @@ function getStokMobileOptimized(toko, forceRefresh = false) {
       };
     });
 
-    // ✅ Cache results (6 jam - 21600 detik) karena cache dihapus otomatis saat ada perubahan data
+    // ✅ Cache results dengan TTL lebih panjang untuk client-side caching
     const jsonStr = JSON.stringify(results);
     if (jsonStr.length < 100000) {
-      cache.put(cacheKey, jsonStr, 21600);
+      cache.put(cacheKey, jsonStr, CONFIG.CACHE_TTL_STOK);
     }
 
-    return response(true, "Data Loaded", results);
+    // ✅ Return with metadata untuk hybrid caching
+    return response(true, "Data Loaded", results, {
+      cached: false,
+      timestamp: new Date().getTime(),
+      ttl: CONFIG.CACHE_TTL_STOK * 1000,  // Convert to ms
+      clientAction: "SAVE_CACHE"  // Signal to save di localStorage
+    });
+
   } catch (e) { 
     return response(false, "Gagal Load: " + e.toString()); 
   }
 }
 
-/**
- * ✅ Get Reported Items dari Cache
- * Cache 2-hour untuk prevent log scan setiap request
- */
+// ============================================================================
+// ✅ HELPER: normalizeProductKey untuk consistent matching
+// ============================================================================
+
+function normalizeProductKey(brand, nama) {
+  const brandNorm = String(brand || "")
+    .trim()
+    .replace(/\s+/g, "-")
+    .toLowerCase()
+    .replace(/-+/g, "-")
+    .trim();
+  
+  const namaNorm = String(nama || "")
+    .trim()
+    .replace(/\s+/g, "-")
+    .toLowerCase()
+    .replace(/-+/g, "-")
+    .trim();
+  
+  const hasBrand = brandNorm && 
+                   brandNorm !== "-" && 
+                   brandNorm !== "umum" && 
+                   brandNorm !== "aksesoris";
+
+  const key = (hasBrand ? `${brandNorm}-${namaNorm}` : namaNorm)
+    .toLowerCase()
+    .replace(/-+/g, "-")
+    .trim();
+
+  return { key, hasBrand };
+}
+
+// ============================================================================
+// ✅ OPTIMIZED: getReportedItemsFromCache dengan timeout
+// ============================================================================
+
 function getReportedItemsFromCache(sheetName, toko, forceRefresh = false) {
-  const timer = new ExecutionTimer(8000); // 8 sec max untuk operation ini
+  const timer = new ExecutionTimer(8000);
   const cacheKey = 'REPORTED_' + sheetName;
   const cache = CacheService.getScriptCache();
   
-  const cached = cache.get(cacheKey);
-  if (cached) return JSON.parse(cached);
+  if (!forceRefresh) {
+    const cached = cache.get(cacheKey);
+    if (cached) return JSON.parse(cached);
+  }
 
   let reportedItems = {};
   
@@ -507,9 +365,8 @@ function getReportedItemsFromCache(sheetName, toko, forceRefresh = false) {
       const todayStr = Utilities.formatDate(new Date(), Session.getScriptTimeZone(), "dd/MM/yyyy");
 
       for (let i = 1; i < dataLog.length; i++) {
-        // ✅ Timeout check every 100 iterations
         if (i % 100 === 0 && timer.isTimeout()) {
-          Logger.log("⚠️ Timeout in getReportedItems, returning partial results");
+          Logger.log("⚠️ Timeout in getReportedItems");
           break;
         }
         
@@ -531,18 +388,21 @@ function getReportedItemsFromCache(sheetName, toko, forceRefresh = false) {
         if (logToko !== originalStoreName && logToko !== targetStoreName) continue;
         if (logStatus !== "salah" || logKoreksi !== false) continue;
 
-        const produkName = String(row[4])
+        // ✅ Normalize produk name dengan consistent method
+        const rawProduk = String(row[4]);
+        const produkNorm = rawProduk
+          .trim()
+          .replace(/\s+/g, "-")
           .toLowerCase()
-          .replace(/\s+/g, " ")
-          .replace(/\s*-\s*/g, "-")
+          .replace(/-+/g, "-")
           .trim();
         
         const komentar = String(row[5]);
         const isAwal = komentar.toLowerCase().includes("lapor awal");
         const isTopup = komentar.toLowerCase().includes("lapor topup");
 
-        if (!reportedItems[produkName]) {
-          reportedItems[produkName] = {
+        if (!reportedItems[produkNorm]) {
+          reportedItems[produkNorm] = {
             awal: false, topup: false, 
             keteranganAwal: "", keteranganTopup: "", 
             barisAwal: null, barisTopup: null
@@ -552,17 +412,17 @@ function getReportedItemsFromCache(sheetName, toko, forceRefresh = false) {
         const sheetRowNumber = i + 1;
 
         if (isAwal) {
-          reportedItems[produkName].awal = true;
-          reportedItems[produkName].barisAwal = sheetRowNumber;
+          reportedItems[produkNorm].awal = true;
+          reportedItems[produkNorm].barisAwal = sheetRowNumber;
           const match = komentar.match(/lapor\s+awal[:\s]*([0-9]+)/i);
-          reportedItems[produkName].keteranganAwal = match ? match[1] : "";
+          reportedItems[produkNorm].keteranganAwal = match ? match[1] : "";
         }
 
         if (isTopup) {
-          reportedItems[produkName].topup = true;
-          reportedItems[produkName].barisTopup = sheetRowNumber;
+          reportedItems[produkNorm].topup = true;
+          reportedItems[produkNorm].barisTopup = sheetRowNumber;
           const match = komentar.match(/lapor\s+topup[:\s]*([0-9]+)/i);
-          reportedItems[produkName].keteranganTopup = match ? match[1] : "";
+          reportedItems[produkNorm].keteranganTopup = match ? match[1] : "";
         }
       }
     }
@@ -570,13 +430,12 @@ function getReportedItemsFromCache(sheetName, toko, forceRefresh = false) {
     Logger.log("Error in getReportedItems: " + err.toString());
   }
 
-  // ✅ Cache hasil (6 jam) karena otomatis terhapus saat ada laporan baru
-  cache.put(cacheKey, JSON.stringify(reportedItems), 21600);
+  cache.put(cacheKey, JSON.stringify(reportedItems), CONFIG.CACHE_TTL_REPORTED);
   return reportedItems;
 }
 
 // ============================================================================
-// BATCH UPDATE STOK (OPTIMIZED & VALIDATED)
+// ✅ OPTIMIZED: batchUpdateStok dengan smart invalidation
 // ============================================================================
 
 function batchUpdateStokMobileOptimized(payload) {
@@ -589,7 +448,7 @@ function batchUpdateStokMobileOptimized(payload) {
     
     if (!sheet) return { success: false, msg: "Sheet tidak ditemukan" };
 
-    // ✅ Validate ALL items before update
+    // Validate data
     const validations = payload.items.map(item => validateStockData(item));
     const invalid = validations.filter(v => !v.valid);
 
@@ -633,13 +492,12 @@ function batchUpdateStokMobileOptimized(payload) {
       ]);
       updated++;
       
-      // ✅ Timeout check
       if (idx % 10 === 0 && timer.isTimeout()) {
         return { success: false, msg: `Timeout saat update item ke-${idx}` };
       }
     });
 
-    // ✅ Batch update per column
+    // Batch update per column
     Object.keys(updatesByCol).forEach(col => {
       const colIdx = parseInt(col);
       const colUpdates = updatesByCol[col];
@@ -653,29 +511,222 @@ function batchUpdateStokMobileOptimized(payload) {
       range.setValues(values);
     });
 
-    // ✅ Batch insert log
+    // Batch insert log
     if (logData.length > 0) {
       const ssLog = SpreadsheetApp.openById(CONFIG.DB_ID);
       let shLog = ssLog.getSheetByName("log") || ssLog.insertSheet("log");
       shLog.getRange(shLog.getLastRow() + 1, 1, logData.length, 8).setValues(logData);
     }
 
-    // ✅ Invalidate caches AFTER successful update
+    // ✅ SMART INVALIDATION - only after successful update
     const cache = CacheService.getScriptCache();
     cache.remove('STOK_' + sheetName);
     cache.remove('dash_sum_' + sheetName);
+    cache.remove('REPORTED_' + sheetName);
 
     timer.logMetric("batchUpdateStok");
-    return { success: true, msg: updated + " Data Berhasil Diupdate!" };
+    
+    // ✅ Return signal untuk client clear cache
+    return { 
+      success: true, 
+      msg: updated + " Data Berhasil Diupdate!",
+      _clientAction: "REFRESH_CACHE"  // Signal to clear localStorage
+    };
 
   } catch (e) {
     return { success: false, msg: "Gagal: " + e.toString() };
   }
 }
 
+
 // ============================================================================
-// LAPORAN SALAH (REPORT MISMATCHES)
+// HELPER FUNCTIONS
 // ============================================================================
+
+function validateStockData(item) {
+  if (!item || typeof item !== 'object') {
+    return { valid: false, errors: ["Invalid item object"] };
+  }
+  
+  const awal = parseInt(item.awal) || 0;
+  const topup = parseInt(item.topup) || 0;
+  const stok = parseInt(item.stok) || 0;
+  
+  const errors = [];
+  
+  if (awal < 0) errors.push("Awal tidak boleh negatif");
+  if (topup < 0) errors.push("Topup tidak boleh negatif");
+  if (stok < 0) errors.push("Stok tidak boleh negatif");
+  
+  if (stok > (awal + topup)) {
+    errors.push(`Stok (${stok}) > Awal+Topup (${awal}+${topup})`);
+  }
+  
+  return {
+    valid: errors.length === 0,
+    errors: errors
+  };
+}
+
+function calculateTerjual(awal, topup, stok) {
+  const a = parseInt(awal) || 0;
+  const t = parseInt(topup) || 0;
+  const s = parseInt(stok) || 0;
+  
+  if (a < 0 || t < 0 || s < 0) return 0;
+  
+  const terjual = (a + t) - s;
+  return Math.max(0, terjual);
+}
+
+function resolveSheetName(name) {
+  const n = String(name).toLowerCase().trim();
+  if(n === 'm3') return 'toko'; 
+  if(n === 'm3 sore') return 'toko sore'; 
+  if(n.includes('jaya')) return 'jayacell'; 
+  return name;
+}
+
+function response(success, msg, data = null, metadata = null) { 
+  const result = { success: success, msg: msg };
+  if (data !== null) result.data = data;
+  if (metadata !== null) result._metadata = metadata;
+  return result;
+}
+
+// ============================================================================
+// OTHER FUNCTIONS (Copy dari kode existing Anda)
+// ============================================================================
+
+function loginUser(payload) {
+  try {
+    const emailInput = String(payload.email).toLowerCase().trim();
+    const passInput = String(payload.password).trim();
+
+    if (!emailInput || !passInput) return response(false, "Email dan Password wajib diisi.");
+
+    const ss = SpreadsheetApp.openById(CONFIG.DB_ID);
+    const shValidasi = ss.getSheetByName("validasi");
+    if (!shValidasi) return response(false, "Sheet validasi tidak ditemukan.");
+    
+    const dataVal = shValidasi.getDataRange().getValues();
+    let user = null;
+
+    for (let i = 1; i < dataVal.length; i++) {
+      const emailSheet = String(dataVal[i][0]).toLowerCase().trim();
+      const passSheet = String(dataVal[i][5]);
+      const statusSheet = String(dataVal[i][4]).toLowerCase().trim();
+      
+      if (emailSheet === emailInput && passSheet === passInput) {
+        if (statusSheet !== 'aktif') return response(false, "Akun Anda dinonaktifkan.");
+        
+        user = { 
+          nama: dataVal[i][1], shift: dataVal[i][2], 
+          konter: dataVal[i][3], email: emailInput 
+        }; 
+        break;
+      }
+    }
+
+    if (!user) return response(false, "Email atau Password salah.");
+
+    let target = { lat: null, long: null, radius: 50 };
+    const sheetLoc = ss.getSheetByName("konter_list");
+    if (sheetLoc) {
+      const dataLoc = sheetLoc.getDataRange().getValues();
+      for (let j = 1; j < dataLoc.length; j++) {
+        if (String(dataLoc[j][0]).toLowerCase() === String(user.konter).toLowerCase()) {
+          target.lat = String(dataLoc[j][7]).replace(',', '.').trim();
+          target.long = String(dataLoc[j][8]).replace(',', '.').trim();
+          const rad = parseInt(dataLoc[j][9]);
+          if (!isNaN(rad) && rad > 0) target.radius = rad;
+          break;
+        }
+      }
+    }
+
+    const sheetAbsen = ss.getSheetByName("data_absensi");
+    let sudahMasuk = false;
+    let jamMasuk = "-";
+    if (sheetAbsen) {
+      const dataAbsen = sheetAbsen.getDataRange().getValues();
+      const today = new Date().toDateString();
+      for (let k = dataAbsen.length - 1; k >= 1; k--) {
+        const rowDateObj = new Date(dataAbsen[k][0]);
+        if (String(dataAbsen[k][1]) === user.nama && rowDateObj.toDateString() === today && String(dataAbsen[k][2]) === 'Masuk') {
+          sudahMasuk = true;
+          jamMasuk = Utilities.formatDate(rowDateObj, Session.getScriptTimeZone(), "HH:mm");
+          break;
+        }
+      }
+    }
+
+    return response(true, "Login Sukses", { user, target, status: { sudahMasuk, jamMasuk } });
+
+  } catch (e) { 
+    return response(false, "Error Login: " + e.toString()); 
+  }
+}
+
+function simpanAbsensi(payload) {
+  try {
+    const ss = SpreadsheetApp.openById(CONFIG.DB_ID);
+    let sheet = ss.getSheetByName("data_absensi");
+    if (!sheet) {
+      sheet = ss.insertSheet("data_absensi");
+      sheet.appendRow(["Waktu", "Nama", "Status", "Lokasi", "Link Foto", "Keterangan", "Lat", "Long"]);
+    }
+
+    let fotoUrl = "-";
+    if (payload.fotoBase64 && CONFIG.FOTO_FOLDER_ID.length > 5) {
+      try {
+        const folder = DriveApp.getFolderById(CONFIG.FOTO_FOLDER_ID);
+        const blob = Utilities.newBlob(
+          Utilities.base64Decode(payload.fotoBase64.split(',')[1]),
+          'image/png',
+          `Absen_${payload.nama}_${Date.now()}.png`
+        );
+        const file = folder.createFile(blob);
+        fotoUrl = file.getUrl();
+      } catch (err) {
+        Logger.log("Upload foto gagal: " + err);
+      }
+    }
+
+    const timestamp = "'" + Utilities.formatDate(new Date(), Session.getScriptTimeZone(), "dd/MM/yyyy HH:mm:ss");
+    sheet.appendRow([timestamp, payload.nama, payload.jenis, payload.toko || "-", fotoUrl, payload.ket, "'" + payload.lat, "'" + payload.long]);
+
+    return response(true, "Absensi Berhasil!");
+  } catch (e) {
+    return response(false, "Gagal Absen: " + e.toString());
+  }
+}
+
+function gantiKataSandi(payload) {
+  try {
+    const ss = SpreadsheetApp.openById(CONFIG.DB_ID);
+    const sheet = ss.getSheetByName("validasi");
+    const data = sheet.getDataRange().getValues();
+    const emailUser = payload.email.toLowerCase().trim();
+    let rowIndex = -1;
+
+    for (let i = 1; i < data.length; i++) {
+      if (String(data[i][0]).toLowerCase().trim() === emailUser) {
+        if (String(data[i][5]) !== String(payload.sandiLama)) {
+          return { success: false, msg: "Kata sandi lama salah!" };
+        }
+        rowIndex = i + 1;
+        break;
+      }
+    }
+
+    if (rowIndex === -1) return { success: false, msg: "User tidak ditemukan." };
+    sheet.getRange(rowIndex, 6).setValue(payload.sandiBaru);
+    return { success: true, msg: "Kata sandi berhasil diperbarui!" };
+  } catch (e) {
+    return { success: false, msg: "Error: " + e.toString() };
+  }
+}
 
 function simpanLaporanSalah(data) {
   try {
@@ -692,19 +743,13 @@ function simpanLaporanSalah(data) {
       ? (String(data.brand).toLowerCase().trim() + "-" + data.nama) 
       : data.nama;
 
-    sheet.appendRow([
-      timestamp, data.user, data.toko, data.kategori, displayNama, 
-      `Lapor ${data.tipeMasalah}: ${data.nilaiBaru} (Sys:${data.nilaiLama})`, 
-      "Salah", false
-    ]);
+    sheet.appendRow([timestamp, data.user, data.toko, data.kategori, displayNama, `Lapor ${data.tipeMasalah}: ${data.nilaiBaru} (Sys:${data.nilaiLama})`, "Salah", false]);
     
     try { sheet.getRange(sheet.getLastRow(), 8).insertCheckboxes(); } catch(e){}
 
     if (CONFIG.NOTIF_EMAIL) {
       try {
-        const subject = `[Laporan Selisih Stok] ${data.toko} - ${displayNama}`;
-        const body = `Halo Admin,\n\nLaporan selisih stok baru:\n• Konter: ${data.toko}\n• Karyawan: ${data.user}\n• Kategori: ${data.kategori}\n• Produk: ${displayNama}\n• Masalah: Selisih ${data.tipeMasalah}\n• Nilai Sistem: ${data.nilaiLama}\n• Nilai Fisik: ${data.nilaiBaru}\n• Waktu Lapor: ${timestamp.replace("'", "")}\n\nSilakan periksa lembar spreadsheet log Anda.`;
-        MailApp.sendEmail(CONFIG.NOTIF_EMAIL, subject, body);
+        MailApp.sendEmail(CONFIG.NOTIF_EMAIL, `[Laporan] ${data.toko} - ${displayNama}`, `Laporan baru: ${displayNama}`);
       } catch(err) {}
     }
 
@@ -712,7 +757,7 @@ function simpanLaporanSalah(data) {
     CacheService.getScriptCache().remove('REPORTED_' + resolveSheetName(data.toko));
     CacheService.getScriptCache().remove('STOK_' + resolveSheetName(data.toko));
 
-    return response(true, "Laporan Terkirim");
+    return response(true, "Laporan Terkirim", null, { clientAction: "REFRESH_CACHE" });
   } catch(e) { 
     return response(false, e.toString()); 
   }
@@ -726,26 +771,15 @@ function editLaporanSalahMobile(data) {
     
     if (isNaN(row) || row < 1) {
       row = cariBarisLogOtomatis(sheet, data.toko, data.produk, data.brand);
-      if (row === -1) {
-        return response(false, "Gagal update: laporan tidak ditemukan");
-      }
+      if (row === -1) return response(false, "Laporan tidak ditemukan");
     }
 
     sheet.getRange(row, 6).setValue(`Lapor ${data.tipeMasalah}: ${data.nilaiBaru} (Sys:${data.nilaiLama})`);
     
-    if (CONFIG.NOTIF_EMAIL) {
-      try {
-        const timestamp = Utilities.formatDate(new Date(), Session.getScriptTimeZone(), "dd/MM/yyyy HH:mm:ss");
-        const subject = `[Revisi Laporan Selisih] ${data.toko} - ${data.produk}`;
-        const body = `Halo Admin,\n\nLaporan selisih stok telah direvisi:\n• Konter: ${data.toko}\n• Produk: ${data.produk}\n• Nilai Sistem: ${data.nilaiLama}\n• Nilai Baru: ${data.nilaiBaru}\n• Waktu Revisi: ${timestamp}`;
-        MailApp.sendEmail(CONFIG.NOTIF_EMAIL, subject, body);
-      } catch(err) {}
-    }
-    
     CacheService.getScriptCache().remove('REPORTED_' + resolveSheetName(data.toko));
-    return response(true, "Laporan berhasil diupdate");
+    return response(true, "Laporan diupdate", null, { clientAction: "REFRESH_CACHE" });
   } catch(e) { 
-    return response(false, "Sistem Error: " + e.toString()); 
+    return response(false, e.toString()); 
   }
 }
 
@@ -757,28 +791,13 @@ function hapusLaporanSalahMobile(data) {
 
     if (isNaN(row) || row < 1) {
       row = cariBarisLogOtomatis(sheet, data.toko, data.produk, data.brand);
-      if (row === -1) return response(false, "Gagal hapus: laporan tidak ditemukan");
-    }
-
-    let logInfo = "";
-    if (CONFIG.NOTIF_EMAIL) {
-      try {
-        const vals = sheet.getRange(row, 1, 1, 6).getValues()[0];
-        logInfo = `• Konter: ${vals[2]}\n• Produk: ${vals[4]}\n• Laporan: ${vals[5]}`;
-      } catch(err) {}
+      if (row === -1) return response(false, "Laporan tidak ditemukan");
     }
 
     sheet.deleteRow(row);
     
-    if (CONFIG.NOTIF_EMAIL && logInfo) {
-      try {
-        const timestamp = Utilities.formatDate(new Date(), Session.getScriptTimeZone(), "dd/MM/yyyy HH:mm:ss");
-        MailApp.sendEmail(CONFIG.NOTIF_EMAIL, `[Pembatalan Laporan Selisih]`, `Halo Admin,\n\nLaporan dibatalkan:\n\n${logInfo}\n\n• Waktu Batal: ${timestamp}`);
-      } catch(err) {}
-    }
-    
     CacheService.getScriptCache().remove('REPORTED_' + resolveSheetName(data.toko));
-    return response(true, "Laporan Dihapus");
+    return response(true, "Laporan dihapus", null, { clientAction: "REFRESH_CACHE" });
   } catch(e) { 
     return response(false, e.toString()); 
   }
@@ -821,10 +840,6 @@ function cariBarisLogOtomatis(sheet, toko, produk, brand) {
   return -1;
 }
 
-// ============================================================================
-// PENGELUARAN (EXPENSES)
-// ============================================================================
-
 function tambahPengeluaranMobile(data) {
   try {
     const ss = SpreadsheetApp.openById(CONFIG.STOK_ID);
@@ -842,12 +857,10 @@ function tambahPengeluaranMobile(data) {
     sheet.getRange(row, 14).setValue(data.nominal); 
     sheet.getRange(row, 18).setValue(data.ket);
     
-    try {
-      CacheService.getScriptCache().remove('STOK_' + sheetName);
-      CacheService.getScriptCache().remove('dash_sum_' + sheetName);
-    } catch (ce) {}
+    CacheService.getScriptCache().remove('STOK_' + sheetName);
+    CacheService.getScriptCache().remove('dash_sum_' + sheetName);
     
-    return response(true, "Pengeluaran Ditambahkan");
+    return response(true, "Pengeluaran Ditambahkan", null, { clientAction: "REFRESH_CACHE" });
   } catch (e) { 
     return response(false, e.toString()); 
   }
@@ -862,12 +875,10 @@ function hapusPengeluaranMobile(data) {
     sheet.getRange(data.row, 14).clearContent();
     sheet.getRange(data.row, 18).clearContent();
     
-    try {
-      CacheService.getScriptCache().remove('STOK_' + sheetName);
-      CacheService.getScriptCache().remove('dash_sum_' + sheetName);
-    } catch(ce) {}
+    CacheService.getScriptCache().remove('STOK_' + sheetName);
+    CacheService.getScriptCache().remove('dash_sum_' + sheetName);
     
-    return response(true, "Pengeluaran Dihapus");
+    return response(true, "Pengeluaran Dihapus", null, { clientAction: "REFRESH_CACHE" });
   } catch(e) { 
     return response(false, e.toString()); 
   }
@@ -882,201 +893,185 @@ function editPengeluaranMobileOptimized(data) {
     sheet.getRange(data.row, 14).setValue(data.nominal);
     sheet.getRange(data.row, 18).setValue(data.ket);
     
-    try {
-      CacheService.getScriptCache().remove('STOK_' + sheetName);
-      CacheService.getScriptCache().remove('dash_sum_' + sheetName);
-    } catch(ce) {}
+    CacheService.getScriptCache().remove('STOK_' + sheetName);
+    CacheService.getScriptCache().remove('dash_sum_' + sheetName);
     
-    return response(true, "Pengeluaran Diupdate");
+    return response(true, "Pengeluaran Diupdate", null, { clientAction: "REFRESH_CACHE" });
   } catch(e) { 
     return response(false, e.toString()); 
   }
 }
 
 // ============================================================================
-// DASHBOARD SUMMARY (OPTIMIZED)
-// ============================================================================
-
-function getDashboardSummaryOptimized(toko, forceRefresh = false) {
-  try {
-    const sName = resolveSheetName(toko);
-    const cacheKey = "dash_sum_" + sName;
-    const cache = CacheService.getScriptCache();
-    
-    if (!forceRefresh) {
-      const cached = cache.get(cacheKey);
-      if (cached) return JSON.parse(cached);
-    }
-
-    // ✅ Reuse getStokMobileOptimized cache (tidak double-load)
-    const resStok = getStokMobileOptimized(toko, false);
-    if (!resStok || !resStok.success) {
-      return response(false, "Gagal mengambil data stok untuk summary");
-    }
-
-    let totalPenjualan = 0;
-    let totalPengeluaran = 0;
-    let totalUangCash = 0;
-
-    resStok.data.forEach(item => {
-      if (item.tipe === 'barang') {
-        const terjual = calculateTerjual(item.awal, item.topup, item.stok);
-        const harga = parseInt(String(item.harga).replace(/[^0-9]/g, '')) || 0;
-        totalPenjualan += (terjual * harga);
-      } else if (item.tipe === 'saldo') {
-        const terjual = calculateTerjual(item.awal, item.topup, item.stok);
-        totalPenjualan += terjual;
-      } else if (item.kategori === 'Pengeluaran') {
-        const nominal = parseInt(String(item.harga).replace(/[^0-9]/g, '')) || 0;
-        totalPengeluaran += nominal;
-      } else if (item.kategori === 'Uang') {
-        const pecahan = parseInt(String(item.nama).replace(/[^0-9]/g, '')) || 0;
-        const lembar = parseInt(String(item.harga).replace(/[^0-9]/g, '')) || 0;
-        totalUangCash += (pecahan * lembar);
-      }
-    });
-
-    const selisih = totalUangCash + totalPengeluaran - totalPenjualan;
-
-    const formatRp = (num) => {
-      let isNeg = num < 0;
-      let abs = Math.abs(num);
-      let str = "Rp " + abs.toLocaleString('id-ID');
-      return isNeg ? "-" + str : str;
-    };
-
-    const ssDb = SpreadsheetApp.openById(CONFIG.DB_ID);
-    const sheetInfo = ssDb.getSheetByName("info_pusat");
-    let runningText = "Selamat Bekerja, Semangat!";
-    
-    if(sheetInfo) {
-      const dataInfo = sheetInfo.getDataRange().getValues();
-      let messages = [];
-      for(let i=1; i<dataInfo.length; i++) {
-        if(dataInfo[i][2] === true) { messages.push(dataInfo[i][1]); }
-      }
-      if(messages.length > 0) { runningText = messages.join("   ◉   "); }
-    }
-    
-    const resObj = response(true, "OK", { 
-      penjualan: formatRp(totalPenjualan), 
-      pengeluaran: formatRp(totalPengeluaran), 
-      kasDiLaci: formatRp(totalUangCash), 
-      selisih: formatRp(selisih), 
-      info: runningText 
-    });
-    
-    cache.put(cacheKey, JSON.stringify(resObj), 300); // 5 min cache
-    return resObj;
-  } catch(e) { 
-    return response(false, e.toString()); 
-  }
-}
-
-// ============================================================================
-// ARCHIVAL SYSTEM (Prevent log sheet unbounded growth)
+// ANALISIS STOK MINGGUAN (SNAPSHOT)
 // ============================================================================
 
 /**
- * Archive old log entries (>30 hari) ke sheet terpisah
- * Jalankan weekly via time-based trigger
+ * Rekam snapshot data "Terjual" harian untuk setiap barang per toko.
+ * Disimpan di sheet 'analisis_mingguan' dengan format:
+ * [Tanggal, Toko, Kategori, Brand, Produk, Terjual, Stok Akhir]
  */
-function archiveOldLogs(daysOld = 30) {
+function rekamSnapshotHarian() {
   try {
     const ss = SpreadsheetApp.openById(CONFIG.DB_ID);
-    let logSheet = ss.getSheetByName("log");
+    let sheet = ss.getSheetByName("analisis_mingguan");
     
-    if (!logSheet) {
-      Logger.log("Log sheet tidak ditemukan");
-      return;
+    if (!sheet) {
+      sheet = ss.insertSheet("analisis_mingguan");
+      sheet.appendRow(["Tanggal", "Toko", "Kategori", "Brand", "Produk", "Terjual", "StokAkhir"]);
     }
     
-    // Create archive sheet jika belum ada
-    let archiveSheet = ss.getSheetByName("log_archive");
-    if (!archiveSheet) {
-      archiveSheet = ss.insertSheet("log_archive");
-      const headers = logSheet.getRange(1, 1, 1, logSheet.getLastColumn()).getValues()[0];
-      archiveSheet.appendRow(headers);
+    // Format timestamp untuk snapshot hari ini
+    const today = Utilities.formatDate(new Date(), Session.getScriptTimeZone(), "yyyy-MM-dd");
+    
+    const tokoList = ["toko", "toko sore", "jayacell"];
+    let allSnapshotData = [];
+    
+    for (const toko of tokoList) {
+      // Panggil fungsi pembacaan data yang sama dengan mobile
+      const resStok = getStokMobileOptimized(toko, true);
+      
+      if (resStok && resStok.success && resStok.data) {
+        resStok.data.forEach(item => {
+          if (item.tipe === 'barang' || item.tipe === 'saldo') {
+            const terjual = calculateTerjual(item.awal, item.topup, item.stok);
+            // Kumpulkan baris snapshot
+            allSnapshotData.push([
+              today, 
+              toko, 
+              item.kategori || "-", 
+              item.brand || "-", 
+              item.nama || "-", 
+              terjual, 
+              item.stok || 0
+            ]);
+          }
+        });
+      }
     }
     
+    if (allSnapshotData.length > 0) {
+      // Simpan menggunakan batch operation agar lebih cepat
+      sheet.getRange(sheet.getLastRow() + 1, 1, allSnapshotData.length, 7).setValues(allSnapshotData);
+      Logger.log(`✅ Snapshot Harian Tersimpan: ${allSnapshotData.length} baris.`);
+    }
+    
+    // Jalankan pembersihan setelah menyimpan snapshot
+    hapusSnapshotLama();
+    
+  } catch (err) {
+    Logger.log("Error rekamSnapshotHarian: " + err.toString());
+  }
+}
+
+/**
+ * Hapus data snapshot yang usianya lebih dari 7 hari
+ */
+function hapusSnapshotLama() {
+  try {
+    const ss = SpreadsheetApp.openById(CONFIG.DB_ID);
+    let sheet = ss.getSheetByName("analisis_mingguan");
+    if (!sheet) return;
+    
+    // Batas mundur 7 hari
     const cutoffDate = new Date();
-    cutoffDate.setDate(cutoffDate.getDate() - daysOld);
+    cutoffDate.setDate(cutoffDate.getDate() - 7);
+    cutoffDate.setHours(0, 0, 0, 0);
     
-    const logData = logSheet.getDataRange().getValues();
-    const rowsToArchive = [];
+    const data = sheet.getDataRange().getValues();
     const rowsToDelete = [];
     
-    for (let i = logData.length - 1; i >= 1; i--) {
-      const rowDate = new Date(logData[i][0]);
-      
-      if (rowDate < cutoffDate) {
-        rowsToArchive.push(logData[i]);
+    // Dari bawah ke atas
+    for (let i = data.length - 1; i >= 1; i--) {
+      let rowDate = new Date(data[i][0]);
+      if (!isNaN(rowDate.getTime()) && rowDate < cutoffDate) {
         rowsToDelete.push(i + 1);
       }
     }
     
-    if (rowsToArchive.length === 0) {
-      Logger.log("Tidak ada log untuk di-archive");
-      return;
+    for (let i = 0; i < rowsToDelete.length; i++) {
+      sheet.deleteRow(rowsToDelete[i]);
     }
     
-    if (rowsToArchive.length > 0) {
-      archiveSheet.getRange(
-        archiveSheet.getLastRow() + 1, 
-        1, 
-        rowsToArchive.length, 
-        rowsToArchive[0].length
-      ).setValues(rowsToArchive);
-    }
-    
-    for (let i = rowsToDelete.length - 1; i >= 0; i--) {
-      logSheet.deleteRow(rowsToDelete[i]);
-    }
-    
-    Logger.log(`✅ Archived ${rowsToArchive.length} log entries (>${daysOld} hari)`);
-    
+    Logger.log(`✅ Snapshot Lama Dihapus: ${rowsToDelete.length} baris.`);
   } catch (err) {
-    Logger.log("Log archival error: " + err);
+    Logger.log("Error hapusSnapshotLama: " + err.toString());
   }
 }
 
 /**
- * Setup time-based trigger untuk archival (weekly)
- * Jalankan 1x: setupArchivalTrigger()
+ * Mengambil rata-rata penjualan 7 hari terakhir dari analisis_mingguan
+ * Parameter opsional 'toko'
  */
-function setupArchivalTrigger() {
+function getAnalisisMingguan(tokoTarget) {
+  try {
+    const ss = SpreadsheetApp.openById(CONFIG.DB_ID);
+    const sheet = ss.getSheetByName("analisis_mingguan");
+    if (!sheet) return response(false, "Data analisis belum tersedia.");
+    
+    const data = sheet.getDataRange().getValues();
+    if (data.length <= 1) return response(true, "Data kosong", []);
+    
+    // [Tanggal, Toko, Kategori, Brand, Produk, Terjual, StokAkhir]
+    const summary = {};
+    const target = String(tokoTarget || "").toLowerCase().trim();
+    
+    for (let i = 1; i < data.length; i++) {
+      const rowToko = String(data[i][1]).toLowerCase().trim();
+      if (target && rowToko !== target) continue;
+      
+      const produkKey = data[i][4]; // Gunakan nama produk sebagai key
+      const terjual = parseInt(data[i][5]) || 0;
+      
+      if (!summary[produkKey]) {
+        summary[produkKey] = {
+          kategori: data[i][2],
+          brand: data[i][3],
+          nama: data[i][4],
+          totalTerjual: 0,
+          hariTerekam: 0
+        };
+      }
+      
+      summary[produkKey].totalTerjual += terjual;
+      summary[produkKey].hariTerekam += 1;
+    }
+    
+    // Format response jadi array dan hitung rata-rata
+    const results = Object.keys(summary).map(key => {
+      const item = summary[key];
+      const rataRata = item.hariTerekam > 0 ? (item.totalTerjual / item.hariTerekam).toFixed(1) : 0;
+      return {
+        ...item,
+        rataRata: parseFloat(rataRata)
+      };
+    });
+    
+    return response(true, "Data Analisis Loaded", results);
+    
+  } catch (err) {
+    return response(false, err.toString());
+  }
+}
+
+/**
+ * Setup Trigger Harian untuk rekamSnapshotHarian
+ * Jalankan 1x secara manual: setupSnapshotTrigger()
+ */
+function setupSnapshotTrigger() {
   const triggers = ScriptApp.getProjectTriggers();
   triggers.forEach(trigger => {
-    if (trigger.getHandlerFunction() === "archiveOldLogs") {
+    if (trigger.getHandlerFunction() === "rekamSnapshotHarian") {
       ScriptApp.deleteTrigger(trigger);
     }
   });
   
-  ScriptApp.newTrigger("archiveOldLogs")
+  // Set trigger tiap jam 23.00 - 24.00 (Tengah malam)
+  ScriptApp.newTrigger("rekamSnapshotHarian")
     .timeBased()
-    .onWeekDay(ScriptApp.WeekDay.SUNDAY)
-    .atHour(2)
+    .everyDays(1)
+    .atHour(23)
     .create();
-  
-  Logger.log("✅ Archival trigger set (weekly Sunday 2 AM)");
-}
-
-// ============================================================================
-// HELPER FUNCTIONS
-// ============================================================================
-
-function resolveSheetName(name) {
-  const n = String(name).toLowerCase().trim();
-  if(n === 'm3') return 'toko'; 
-  if(n === 'm3 sore') return 'toko sore'; 
-  if(n.includes('jaya')) return 'jayacell'; 
-  return name;
-}
-
-function response(success, msg, data = null) { 
-  return { success: success, msg: msg, data: data }; 
-}
-
-function include(filename) { 
-  return HtmlService.createHtmlOutputFromFile(filename).getContent(); 
+    
+  Logger.log("✅ Trigger snapshot harian berhasil di-setup (pukul 23.00-24.00).");
 }

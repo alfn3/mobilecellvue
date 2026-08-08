@@ -11,7 +11,7 @@
           </span>
           <button 
             class="btn btn-light rounded-circle border shadow-sm btn-refresh-stok"
-            @click="loadStock"
+            @click="loadStock(true)"
             :disabled="loading"
           >
             <i class="fa-solid fa-arrows-rotate text-primary" :class="{ 'fa-spin': loading }"></i>
@@ -30,18 +30,18 @@
           >
           <i class="fa-solid fa-magnifying-glass position-absolute top-50 end-0 translate-middle-y me-3 text-muted"></i>
         </div>
-        <!-- Tombol filter stok kosong hanya di tab stok -->
-        <div v-if="activeTab === 'stok'">
-          <button 
-            class="btn btn-filter shadow-sm rounded-pill border d-flex align-items-center gap-1 px-3 fw-bold btn-sm" 
-            :class="isHideZero ? 'btn-primary text-white' : 'btn-light text-muted'"
-            @click="isHideZero = !isHideZero"
-            style="height: 38px; font-size: 0.75rem; white-space: nowrap; transition: all 0.2s ease-in-out;"
-          >
-            <i class="fa-solid" :class="isHideZero ? 'fa-eye-slash' : 'fa-eye'"></i>
-            <span>{{ isHideZero ? 'Sembunyikan Kosong' : 'Tampilkan Semua' }}</span>
-          </button>
-        </div>
+          <!-- Tombol filter stok kosong hanya di tab stok -->
+          <div v-if="activeTab === 'stok'">
+            <button 
+              class="btn btn-filter shadow-sm rounded-pill border d-flex align-items-center gap-1 px-3 fw-bold btn-sm" 
+              :class="isHideZero ? 'btn-primary text-white' : 'btn-light text-muted'"
+              @click="isHideZero = !isHideZero"
+              style="height: 38px; font-size: 0.75rem; white-space: nowrap; transition: all 0.2s ease-in-out;"
+            >
+              <i class="fa-solid" :class="isHideZero ? 'fa-eye-slash' : 'fa-eye'"></i>
+              <span>{{ isHideZero ? 'Sembunyikan Kosong' : 'Tampilkan Semua' }}</span>
+            </button>
+          </div>
         <!-- Indikator antrian pengeluaran belum disimpan -->
         <div v-if="activeTab === 'pengeluaran' && pendingExpenses.length > 0">
           <span class="badge bg-warning text-dark rounded-pill px-3 py-2 fw-bold small">
@@ -409,7 +409,6 @@
         <button class="btn-fab btn-fab-teal"><i class="fa-solid fa-plus"></i></button>
       </div>
     </div>
-
   </div>
 </template>
 
@@ -434,6 +433,9 @@ const currentKat = ref('Perdana')
 // Antrian pengeluaran lokal (belum dikirim ke server)
 const savedExpenses = localStorage.getItem('PENDING_EXPENSES')
 const pendingExpenses = ref(savedExpenses ? JSON.parse(savedExpenses) : [])
+
+onMounted(() => {
+})
 
 watch(pendingExpenses, (newVal) => {
   localStorage.setItem('PENDING_EXPENSES', JSON.stringify(newVal))
