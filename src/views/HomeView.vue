@@ -311,9 +311,9 @@ const totalPengeluaran = computed(() => {
     // Pengeluaran di-format menjadi tipe='uang' oleh HomeView
     if (item.tipe === 'uang' && (item.kategori || '').toLowerCase() === 'pengeluaran') {
       const key = item.row ? `row_${item.row}_${item.tipe}` : `${item.kategori}_${item.nama}`.replace(/[^a-zA-Z0-9]/g, "")
-      let nominal = parseInt(String(item.harga).replace(/[^0-9]/g, '')) || 0
+      let nominal = parseInt(String(item.harga).replace(/[^0-9-]/g, '')) || 0
       if (store.unsavedChanges.hasOwnProperty(key)) {
-        nominal = parseInt(String(store.unsavedChanges[key]).replace(/[^0-9]/g, '')) || 0
+        nominal = parseInt(String(store.unsavedChanges[key]).replace(/[^0-9-]/g, '')) || 0
       }
       total += nominal
     }
@@ -322,7 +322,7 @@ const totalPengeluaran = computed(() => {
   try {
     const pending = JSON.parse(localStorage.getItem('PENDING_EXPENSES') || '[]')
     pending.forEach(exp => {
-      total += parseInt(String(exp.nominal).replace(/[^0-9]/g, '')) || 0
+      total += parseInt(String(exp.nominal).replace(/[^0-9-]/g, '')) || 0
     })
   } catch(e) {}
   return total

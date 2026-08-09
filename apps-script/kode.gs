@@ -574,9 +574,10 @@ function validateStockData(item) {
 }
 
 function calculateTerjual(awal, topup, stok) {
-  const a = parseInt(awal) || 0;
-  const t = parseInt(topup) || 0;
-  const s = parseInt(stok) || 0;
+  const parseNum = (val) => parseInt(String(val).replace(/[^\d-]/g, ''), 10) || 0;
+  const a = parseNum(awal);
+  const t = parseNum(topup);
+  const s = parseNum(stok);
   
   if (a < 0 || t < 0 || s < 0) return 0;
   
@@ -757,11 +758,11 @@ function simpanLaporanSalah(data) {
     const brandStr = (data.brand && data.brand !== '-') ? data.brand + ' | ' : '';
     const cleanProduk = data.brand && data.brand !== '-' ? String(data.nama).replace(new RegExp('^' + data.brand + '[- ]?', 'i'), '').trim() : data.nama;
     const textNotif = `🚨 *Laporan Salah (${data.toko})*\n\n` +
-                      `📅 *Waktu:* ${cleanTimestamp}\n` +
-                      `📦 *Produk:* ${kategoriStr}${brandStr}${cleanProduk}\n` +
-                      `📝 *Masalah:* Lapor ${data.tipeMasalah}\n` +
-                      `✅ *Koreksi:* ${data.nilaiBaru} (Sistem: ${data.nilaiLama})\n` +
-                      `👤 *Pelapor:* ${data.user}`;
+                      `*Waktu:* ${cleanTimestamp}\n` +
+                      `*Produk:* ${kategoriStr}${brandStr}${cleanProduk}\n` +
+                      `*Masalah:* Lapor ${data.tipeMasalah}\n` +
+                      `*Koreksi:* ${data.nilaiBaru} (Sistem: ${data.nilaiLama})\n` +
+                      `*Pelapor:* ${data.user}`;
 
     kirimNotifWA(textNotif);
 
@@ -793,10 +794,10 @@ function editLaporanSalahMobile(data) {
     const brandStr = (data.brand && data.brand !== '-') ? data.brand + ' | ' : '';
     const cleanProduk = data.brand && data.brand !== '-' ? String(data.produk).replace(new RegExp('^' + data.brand + '[- ]?', 'i'), '').trim() : data.produk;
     const textNotif = `✏️ *Laporan Diedit (${data.toko})*\n\n` +
-                      `📅 *Waktu:* ${cleanTimestamp}\n` +
-                      `📦 *Produk:* ${kategoriStr}${brandStr}${cleanProduk}\n` +
-                      `📝 *Koreksi Baru:* ${data.nilaiBaru} (Sys: ${data.nilaiLama})\n` +
-                      `👤 *Editor:* ${data.user}`;
+                      `*Waktu:* ${cleanTimestamp}\n` +
+                      `*Produk:* ${kategoriStr}${brandStr}${cleanProduk}\n` +
+                      `*Koreksi Baru:* ${data.nilaiBaru} (Sys: ${data.nilaiLama})\n` +
+                      `*Editor:* ${data.user}`;
     kirimNotifWA(textNotif);
 
     CacheService.getScriptCache().remove('REPORTED_' + resolveSheetName(data.toko));
@@ -824,9 +825,9 @@ function hapusLaporanSalahMobile(data) {
     const brandStr = (data.brand && data.brand !== '-') ? data.brand + ' | ' : '';
     const cleanProduk = data.brand && data.brand !== '-' ? String(data.produk).replace(new RegExp('^' + data.brand + '[- ]?', 'i'), '').trim() : data.produk;
     const textNotif = `🗑️ *Laporan Dihapus (${data.toko})*\n\n` +
-                      `📅 *Waktu:* ${cleanTimestamp}\n` +
-                      `📦 *Produk:* ${kategoriStr}${brandStr}${cleanProduk}\n` +
-                      `👤 *Penghapus:* ${data.user}`;
+                      `*Waktu:* ${cleanTimestamp}\n` +
+                      `*Produk:* ${kategoriStr}${brandStr}${cleanProduk}\n` +
+                      `*Penghapus:* ${data.user}`;
     kirimNotifWA(textNotif);
 
     CacheService.getScriptCache().remove('REPORTED_' + resolveSheetName(data.toko));
@@ -973,7 +974,7 @@ function rekamSnapshotHarian() {
     // Format timestamp untuk snapshot hari ini
     const today = Utilities.formatDate(new Date(), Session.getScriptTimeZone(), "yyyy-MM-dd");
     
-    const tokoList = ["toko", "toko sore", "jayacell"];
+    const tokoList = ["toko", "toko sore", "jayacell", "m1", "m1 sore", "m2", "m2 sore", "m4"];
     let allSnapshotData = [];
     
     for (const toko of tokoList) {
@@ -984,16 +985,20 @@ function rekamSnapshotHarian() {
         resStok.data.forEach(item => {
           if (item.tipe === 'barang' || item.tipe === 'saldo') {
             const terjual = calculateTerjual(item.awal, item.topup, item.stok);
-            // Kumpulkan baris snapshot
-            allSnapshotData.push([
-              today, 
-              toko, 
-              item.kategori || "-", 
-              item.brand || "-", 
-              item.nama || "-", 
-              terjual, 
-              item.stok || 0
-            ]);
+            const stokAkhir = parseInt(String(item.stok || '0').replace(/[^\d-]/g, ''), 10) || 0;
+            
+            // Kumpulkan baris snapshot jika ada stok atau ada yang terjual
+            if (stokAkhir > 0 || terjual > 0) {
+              allSnapshotData.push([
+                today, 
+                toko, 
+                item.kategori || "-", 
+                item.brand || "-", 
+                item.nama || "-", 
+                terjual, 
+                stokAkhir
+              ]);
+            }
           }
         });
       }
