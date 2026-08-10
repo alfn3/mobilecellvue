@@ -88,10 +88,11 @@ function logExecutionMetric(action, executionTime, status) {
 
 function doPost(e) {
   const timer = new ExecutionTimer();
+  let action = "UNKNOWN";
   
   try {
     const request = JSON.parse(e.postData.contents);
-    const action = request.action;
+    action = request.action;
     const payload = request.payload;
     
     let result = {};
@@ -135,7 +136,7 @@ function doPost(e) {
         result = getAnalisisMingguan(payload.toko);
         break;
       case 'getInfoPusat':
-        result = getInfoPusat();
+        result = getInfoPusat(payload.toko);
         break;
       default:
         result = response(false, "Action tidak ditemukan");
@@ -1053,6 +1054,27 @@ function hapusSnapshotLama() {
   }
 }
 
+function getInfoPusat() {
+  try {
+    const ssDb = SpreadsheetApp.openById(CONFIG.DB_ID);
+    const sheetInfo = ssDb.getSheetByName("info_pusat");
+    let runningText = "Selamat Bekerja, Semangat!";
+    
+    if(sheetInfo) {
+       const dataInfo = sheetInfo.getDataRange().getValues();
+       let messages = [];
+       for(let i=1; i<dataInfo.length; i++) {
+          // Asumsi centang aktif ada di kolom C (index 2), pesan di kolom B (index 1)
+          if(dataInfo[i][2] === true) { messages.push(dataInfo[i][1]); }
+       }
+       if(messages.length > 0) { runningText = messages.join("   ◉   "); }
+    }
+    return response(true, "OK", { info: runningText });
+  } catch(e) { 
+    return response(false, e.toString()); 
+  }
+}
+
 /**
  * Mengambil rata-rata penjualan 7 hari terakhir dari analisis_mingguan
  * Parameter opsional 'toko'
@@ -1148,5 +1170,71 @@ function tesKoneksiFonnte() {
     Logger.log("Hasil tes koneksi: " + res.getContentText());
   } catch (err) {
     Logger.log("Error tes koneksi: " + err.toString());
+  }
+}
+
+function hapusLogLama() {
+  try {
+    const ss = SpreadsheetApp.openById(CONFIG.DB_ID);
+    let sheet = ss.getSheetByName("log");
+    if (!sheet) return;
+    
+    const cutoffDate = new Date();
+    // 3 hari terakhir (hari ini, kemarin, lusa) = batas H-2
+    cutoffDate.setDate(cutoffDate.getDate() - 2);
+    cutoffDate.setHours(0, 0, 0, 0);
+    
+    const data = sheet.getDataRange().getValues();
+    if (data.length <= 1) return; // Hanya ada header atau kosong
+    
+    const rowsToKeep = [data[0]]; // Simpan header
+    let deletedCount = 0;
+    
+    for (let i = 1; i < data.length; i++) {
+      let dateStr = String(data[i][0]).replace(/^'/, '').trim(); 
+      let rowDate;
+      
+      if (dateStr.includes('/')) {
+        let parts = dateStr.split(' ');
+        let dateParts = parts[0].split('/');
+        let timeParts = parts[1] ? parts[1].split(':') : ['0', '0', '0'];
+        
+        if (dateParts.length === 3) {
+           let day = parseInt(dateParts[0], 10);
+           let month = parseInt(dateParts[1], 10) - 1;
+           let year = parseInt(dateParts[2], 10);
+           
+           let hh = parseInt(timeParts[0] || '0', 10);
+           let mm = parseInt(timeParts[1] || '0', 10);
+           let ss = parseInt(timeParts[2] || '0', 10);
+           
+           rowDate = new Date(year, month, day, hh, mm, ss);
+        } else {
+           rowDate = new Date(dateStr);
+        }
+      } else {
+        rowDate = new Date(data[i][0]);
+      }
+      
+      // Jika tanggal valid dan kurang dari cutoffDate (sudah kadaluarsa)
+      if (!isNaN(rowDate.getTime()) && rowDate < cutoffDate) {
+        deletedCount++;
+      } else {
+        // Jika masih baru (atau gagal diurai), tetap simpan
+        rowsToKeep.push(data[i]);
+      }
+    }
+    
+    // Jika ada yang perlu dihapus, timpa ulang isi sheet-nya
+    if (deletedCount > 0) {
+      sheet.getDataRange().clearContent();
+      sheet.getRange(1, 1, rowsToKeep.length, rowsToKeep[0].length).setValues(rowsToKeep);
+      Logger.log(`✅ Log Lama Dihapus: ${deletedCount} baris. (Tersisa: ${rowsToKeep.length - 1} baris log)`);
+    } else {
+      Logger.log(`✅ Tidak ada log lama yang perlu dihapus.`);
+    }
+    
+  } catch (err) {
+    Logger.log("Error hapusLogLama: " + err.toString());
   }
 }

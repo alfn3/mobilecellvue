@@ -131,17 +131,35 @@
         </div>
       </div>
       <div v-else-if="filteredAnalisis.length > 0" class="card border-0 shadow-sm rounded-4 mb-4 bg-white border border-warning" style="border-width: 2px !important;">
-        <div class="card-body p-3 d-flex justify-content-between align-items-center">
-          <div class="d-flex align-items-center gap-3">
-            <div class="rounded-circle bg-warning bg-opacity-25 d-flex align-items-center justify-content-center text-warning" style="width: 48px; height: 48px;">
-              <i class="fa-solid fa-chart-line fs-5"></i>
+        <div class="card-body p-3">
+          <div class="d-flex justify-content-between align-items-center mb-3">
+            <div class="d-flex align-items-center gap-3">
+              <div class="rounded-circle bg-warning bg-opacity-25 d-flex align-items-center justify-content-center text-warning" style="width: 48px; height: 48px;">
+                <i class="fa-solid fa-chart-line fs-5"></i>
+              </div>
+              <div>
+                <h6 class="fw-bold text-dark mb-0">Analisis Stok</h6>
+                <span class="small text-danger fw-bold">{{ filteredAnalisis.length }} Potensi Salah Input!</span>
+              </div>
             </div>
-            <div>
-              <h6 class="fw-bold text-dark mb-0">Analisis Stok</h6>
-              <span class="small text-danger fw-bold">{{ filteredAnalisis.length }} Indikasi Salah Lapor!</span>
+            <button class="btn btn-warning btn-sm fw-bold rounded-pill shadow-sm px-3" @click="bukaAnalisis">Detail</button>
+          </div>
+          
+          <!-- Tampilkan List Langsung di Card Home -->
+          <div class="list-group list-group-flush border-top pt-2">
+            <div v-for="(item, idx) in filteredAnalisis.slice(0, 3)" :key="item.nama" class="list-group-item px-0 py-2 border-0 d-flex justify-content-between align-items-center">
+              <div class="text-truncate pe-2">
+                <span class="small fw-bold text-dark d-block text-truncate">{{ item.nama }}</span>
+                <span class="small text-muted" style="font-size: 0.7rem;">Rata-rata: {{ item.rataRata }}</span>
+              </div>
+              <div class="badge bg-danger rounded-pill px-2 py-1 text-white shadow-sm flex-shrink-0" style="font-size: 0.75rem;">
+                Hari Ini: {{ item.terjualHariIni }}
+              </div>
+            </div>
+            <div v-if="filteredAnalisis.length > 3" class="text-center pt-2">
+              <span class="small text-muted fw-bold" style="font-size: 0.7rem;">+{{ filteredAnalisis.length - 3 }} item lainnya...</span>
             </div>
           </div>
-          <button class="btn btn-warning btn-sm fw-bold rounded-pill shadow-sm px-3" @click="bukaAnalisis">Cek</button>
         </div>
       </div>
       <div v-else class="card border-0 shadow-sm rounded-4 mb-4 bg-white border border-success" style="border-width: 2px !important;">
@@ -155,7 +173,6 @@
               <span class="small text-success fw-bold">Penjualan Wajar & Aman</span>
             </div>
           </div>
-          <button class="btn btn-success btn-sm fw-bold rounded-pill shadow-sm px-3" @click="bukaAnalisis">Cek</button>
         </div>
       </div>
     </div>
@@ -432,7 +449,22 @@ const filteredAnalisis = computed(() => {
     return {
       ...item,
       terjualHariIni,
-      isAnomali: Math.abs(terjualHariIni - item.rataRata) >= Math.max(2, item.rataRata * 0.5)
+      isAnomali: (() => {
+        let isElektrik = matchingStok && matchingStok.tipe === 'saldo';
+        let selisih = Math.abs(terjualHariIni - item.rataRata);
+        
+        if (isElektrik) {
+          // Elektrik: perbandingan beberapa juta
+          return selisih >= 2000000;
+        } else {
+          // Barang Fisik:
+          // Hari ini laku 1 tapi kemarin-kemarin 0
+          if (item.rataRata === 0 && terjualHariIni >= 1) return true;
+          // Hari ini beda jauh (selisih > 5) ATAU 3x lipat
+          if (selisih > 5 || terjualHariIni > item.rataRata * 3) return true;
+          return false;
+        }
+      })()
     }
   })
   
