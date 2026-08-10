@@ -367,7 +367,11 @@ const totalUangCash = computed(() => {
 const computedSelisih = computed(() => {
   if (totalPenjualan.value === null || totalUangCash.value === null) return null
   const peng = totalPengeluaran.value || 0
-  return (totalUangCash.value + peng) - totalPenjualan.value
+  let modalSore = 0
+  if (store.user.store && store.user.store.toLowerCase().includes('sore')) {
+    modalSore = 1000000
+  }
+  return (totalUangCash.value + peng) - totalPenjualan.value - modalSore
 })
 
 const formatRp = (num) => {

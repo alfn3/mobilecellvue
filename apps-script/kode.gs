@@ -525,10 +525,14 @@ function batchUpdateStokMobileOptimized(payload) {
     }
 
     // ✅ SMART INVALIDATION - only after successful update
-    const cache = CacheService.getScriptCache();
-    cache.remove('STOK_' + sheetName);
-    cache.remove('dash_sum_' + sheetName);
-    cache.remove('REPORTED_' + sheetName);
+    try {
+      const cache = CacheService.getScriptCache();
+      cache.remove('STOK_' + sheetName);
+      cache.remove('dash_sum_' + sheetName);
+      cache.remove('REPORTED_' + sheetName);
+    } catch (e) {
+      Logger.log("Gagal invalidate cache: " + e.toString());
+    }
 
     timer.logMetric("batchUpdateStok");
     
@@ -892,8 +896,12 @@ function tambahPengeluaranMobile(data) {
     sheet.getRange(row, 14).setValue(data.nominal); 
     sheet.getRange(row, 18).setValue(data.ket);
     
-    CacheService.getScriptCache().remove('STOK_' + sheetName);
-    CacheService.getScriptCache().remove('dash_sum_' + sheetName);
+    try {
+      CacheService.getScriptCache().remove('STOK_' + sheetName);
+      CacheService.getScriptCache().remove('dash_sum_' + sheetName);
+    } catch (e) {
+      Logger.log("Gagal invalidate cache: " + e.toString());
+    }
     
     return response(true, "Pengeluaran Ditambahkan", null, { clientAction: "REFRESH_CACHE" });
   } catch (e) { 
@@ -910,8 +918,12 @@ function hapusPengeluaranMobile(data) {
     sheet.getRange(data.row, 14).clearContent();
     sheet.getRange(data.row, 18).clearContent();
     
-    CacheService.getScriptCache().remove('STOK_' + sheetName);
-    CacheService.getScriptCache().remove('dash_sum_' + sheetName);
+    try {
+      CacheService.getScriptCache().remove('STOK_' + sheetName);
+      CacheService.getScriptCache().remove('dash_sum_' + sheetName);
+    } catch (e) {
+      Logger.log("Gagal invalidate cache: " + e.toString());
+    }
     
     return response(true, "Pengeluaran Dihapus", null, { clientAction: "REFRESH_CACHE" });
   } catch(e) { 
@@ -928,8 +940,12 @@ function editPengeluaranMobileOptimized(data) {
     sheet.getRange(data.row, 14).setValue(data.nominal);
     sheet.getRange(data.row, 18).setValue(data.ket);
     
-    CacheService.getScriptCache().remove('STOK_' + sheetName);
-    CacheService.getScriptCache().remove('dash_sum_' + sheetName);
+    try {
+      CacheService.getScriptCache().remove('STOK_' + sheetName);
+      CacheService.getScriptCache().remove('dash_sum_' + sheetName);
+    } catch (e) {
+      Logger.log("Gagal invalidate cache: " + e.toString());
+    }
     
     return response(true, "Pengeluaran Diupdate", null, { clientAction: "REFRESH_CACHE" });
   } catch(e) { 
@@ -1090,11 +1106,12 @@ function getAnalisisMingguan(tokoTarget) {
     
     // [Tanggal, Toko, Kategori, Brand, Produk, Terjual, StokAkhir]
     const summary = {};
-    const target = String(tokoTarget || "").toLowerCase().trim();
+    const target = resolveSheetName(String(tokoTarget || "").toLowerCase().trim());
     
     for (let i = 1; i < data.length; i++) {
       const rowToko = String(data[i][1]).toLowerCase().trim();
-      if (target && rowToko !== target) continue;
+      // Bandingkan juga dengan resolveSheetName agar konsisten
+      if (target && resolveSheetName(rowToko) !== target) continue;
       
       const produkKey = data[i][4]; // Gunakan nama produk sebagai key
       const terjual = parseInt(data[i][5]) || 0;
