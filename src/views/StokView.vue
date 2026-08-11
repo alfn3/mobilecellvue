@@ -764,7 +764,7 @@ const saveAll = () => {
       }
 
       Swal.close()
-      await loadStock()
+      await loadStock(true)
 
       if (allSuccess) {
         Swal.fire('Sukses', 'Semua perubahan berhasil disimpan.', 'success')
@@ -976,7 +976,7 @@ const openModalLapor = (item, field, sysVal) => {
       Swal.fire({ title: 'Mengirim Laporan...', didOpen: () => Swal.showLoading() })
       const res = await callApi('simpanLaporanSalah', payload)
       Swal.close()
-      if (res.success) { Swal.fire('Terkirim', 'Laporan berhasil dikirim.', 'success'); loadStock() }
+      if (res.success) { Swal.fire('Terkirim', 'Laporan berhasil dikirim.', 'success'); loadStock(true) }
       else Swal.fire('Gagal', res.msg || 'Gagal mengirim laporan.', 'error')
     }
   })
@@ -1121,7 +1121,7 @@ const handleEditPengeluaran = (item) => {
         nominal: result.value.nominal, ket: result.value.ket
       })
       Swal.close()
-      if (res.success) { await loadStock(); Swal.fire('Sukses', 'Pengeluaran diperbarui.', 'success') }
+      if (res.success) { await loadStock(true); Swal.fire('Sukses', 'Pengeluaran diperbarui.', 'success') }
       else Swal.fire('Gagal', res.msg || 'Gagal mengupdate.', 'error')
     }
   })
@@ -1141,7 +1141,7 @@ const handleHapusPengeluaran = (item) => {
       Swal.fire({ title: 'Menghapus...', didOpen: () => Swal.showLoading() })
       const res = await callApi('hapusPengeluaran', { toko: store.user.store, row: item.row })
       Swal.close()
-      if (res.success) { await loadStock(); Swal.fire('Terhapus', 'Pengeluaran telah dihapus.', 'success') }
+      if (res.success) { await loadStock(true); Swal.fire('Terhapus', 'Pengeluaran telah dihapus.', 'success') }
       else Swal.fire('Gagal', res.msg || 'Gagal menghapus.', 'error')
     }
   })

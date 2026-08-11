@@ -16,7 +16,7 @@ const CONFIG = {
   FOTO_FOLDER_ID: '16nDd0ozjr6eR3JcKmyBEnB-16HDqa9jb',
   NOTIF_EMAIL: 'alfiannurhuda77@gmail.com',
   FONNTE_TOKEN: 'vNkPPChGgZQZXzJxE927', // Masukkan Token API Fonnte Anda di sini
-  FONNTE_TARGET: '0895355347768', // Masukkan Nomor WhatsApp Tujuan di sini (Misal: '08123456789')
+  FONNTE_TARGET: '628156665292-1474669748@g.us', // Masukkan Nomor WhatsApp Tujuan di sini (Misal: '08123456789')
   MAX_EXECUTION_TIME: 25000,
   SLOW_EXECUTION_THRESHOLD: 5000,
   
@@ -377,8 +377,14 @@ function getReportedItemsFromCache(sheetName, toko, forceRefresh = false) {
         }
         
         const row = dataLog[i];
-        let isToday = false;
+        const logStatus = String(row[6]).toLowerCase().trim();
+        const logKoreksi = row[7];
+        if (logStatus !== "salah" || logKoreksi !== false) continue;
 
+        const logToko = String(row[2]).toLowerCase().trim();
+        if (logToko !== originalStoreName && logToko !== targetStoreName) continue;
+
+        let isToday = false;
         if (row[0] instanceof Date) {
           isToday = Utilities.formatDate(row[0], Session.getScriptTimeZone(), "dd/MM/yyyy") === todayStr;
         } else {
@@ -386,13 +392,6 @@ function getReportedItemsFromCache(sheetName, toko, forceRefresh = false) {
         }
 
         if (!isToday) continue;
-
-        const logToko = String(row[2]).toLowerCase().trim();
-        const logStatus = String(row[6]).toLowerCase().trim();
-        const logKoreksi = row[7];
-
-        if (logToko !== originalStoreName && logToko !== targetStoreName) continue;
-        if (logStatus !== "salah" || logKoreksi !== false) continue;
 
         // ✅ Normalize produk name dengan consistent method
         const rawProduk = String(row[4]);
@@ -530,9 +529,7 @@ function batchUpdateStokMobileOptimized(payload) {
       cache.remove('STOK_' + sheetName);
       cache.remove('dash_sum_' + sheetName);
       cache.remove('REPORTED_' + sheetName);
-    } catch (e) {
-      Logger.log("Gagal invalidate cache: " + e.toString());
-    }
+    } catch(e){}
 
     timer.logMetric("batchUpdateStok");
     
@@ -661,12 +658,24 @@ function loginUser(payload) {
     let jamMasuk = "-";
     if (sheetAbsen) {
       const dataAbsen = sheetAbsen.getDataRange().getValues();
-      const today = new Date().toDateString();
+      const todayStr = Utilities.formatDate(new Date(), Session.getScriptTimeZone(), "dd/MM/yyyy");
       for (let k = dataAbsen.length - 1; k >= 1; k--) {
-        const rowDateObj = new Date(dataAbsen[k][0]);
-        if (String(dataAbsen[k][1]) === user.nama && rowDateObj.toDateString() === today && String(dataAbsen[k][2]) === 'Masuk') {
+        let rowDate = dataAbsen[k][0];
+        let isToday = false;
+        if (rowDate instanceof Date) {
+          isToday = Utilities.formatDate(rowDate, Session.getScriptTimeZone(), "dd/MM/yyyy") === todayStr;
+        } else {
+          isToday = String(rowDate).includes(todayStr);
+        }
+        
+        if (String(dataAbsen[k][1]) === user.nama && isToday && String(dataAbsen[k][2]) === 'Masuk') {
           sudahMasuk = true;
-          jamMasuk = Utilities.formatDate(rowDateObj, Session.getScriptTimeZone(), "HH:mm");
+          if (rowDate instanceof Date) {
+            jamMasuk = Utilities.formatDate(rowDate, Session.getScriptTimeZone(), "HH:mm");
+          } else {
+            let match = String(rowDate).match(/(\d{2}:\d{2})/);
+            jamMasuk = match ? match[1] : "-";
+          }
           break;
         }
       }
@@ -772,8 +781,10 @@ function simpanLaporanSalah(data) {
     kirimNotifWA(textNotif);
 
     // ✅ Invalidate cache
-    CacheService.getScriptCache().remove('REPORTED_' + resolveSheetName(data.toko));
-    CacheService.getScriptCache().remove('STOK_' + resolveSheetName(data.toko));
+    try {
+      CacheService.getScriptCache().remove('REPORTED_' + resolveSheetName(data.toko));
+      CacheService.getScriptCache().remove('STOK_' + resolveSheetName(data.toko));
+    } catch(e){}
 
     return response(true, "Laporan Terkirim", null, { clientAction: "REFRESH_CACHE" });
   } catch(e) { 
@@ -805,7 +816,7 @@ function editLaporanSalahMobile(data) {
                       `*Editor:* ${data.user}`;
     kirimNotifWA(textNotif);
 
-    CacheService.getScriptCache().remove('REPORTED_' + resolveSheetName(data.toko));
+    try { CacheService.getScriptCache().remove('REPORTED_' + resolveSheetName(data.toko)); } catch(e){}
     return response(true, "Laporan diupdate", null, { clientAction: "REFRESH_CACHE" });
   } catch(e) { 
     return response(false, e.toString()); 
@@ -835,7 +846,7 @@ function hapusLaporanSalahMobile(data) {
                       `*Penghapus:* ${data.user}`;
     kirimNotifWA(textNotif);
 
-    CacheService.getScriptCache().remove('REPORTED_' + resolveSheetName(data.toko));
+    try { CacheService.getScriptCache().remove('REPORTED_' + resolveSheetName(data.toko)); } catch(e){}
     return response(true, "Laporan dihapus", null, { clientAction: "REFRESH_CACHE" });
   } catch(e) { 
     return response(false, e.toString()); 
@@ -858,6 +869,11 @@ function cariBarisLogOtomatis(sheet, toko, produk, brand) {
     const rowData = dataLog[i];
     if (!rowData[0]) continue;
     
+    if (String(rowData[6]).toLowerCase().trim() !== 'salah' || rowData[7] !== false) continue;
+    
+    const logToko = String(rowData[2]).toLowerCase().trim();
+    if (logToko !== targetToko) continue;
+    
     let isToday = false;
     let logDate = rowData[0];
     if (!(logDate instanceof Date)) logDate = new Date(logDate);
@@ -869,10 +885,9 @@ function cariBarisLogOtomatis(sheet, toko, produk, brand) {
     
     if (!isToday) continue;
     
-    const logToko = String(rowData[2]).toLowerCase().trim();
     const logProduk = String(rowData[4]).toLowerCase().replace(/\s+/g, " ").replace(/\s*-\s*/g, "-").trim();
     
-    if (logToko === targetToko && (logProduk === targetDenganBrand || logProduk === namaBersih) && String(rowData[6]).toLowerCase().trim() === 'salah' && rowData[7] === false) {
+    if (logProduk === targetDenganBrand || logProduk === namaBersih) {
       return i + 1;
     }
   }
@@ -895,6 +910,7 @@ function tambahPengeluaranMobile(data) {
     
     sheet.getRange(row, 14).setValue(data.nominal); 
     sheet.getRange(row, 18).setValue(data.ket);
+    SpreadsheetApp.flush();
     
     try {
       CacheService.getScriptCache().remove('STOK_' + sheetName);
@@ -917,6 +933,7 @@ function hapusPengeluaranMobile(data) {
     
     sheet.getRange(data.row, 14).clearContent();
     sheet.getRange(data.row, 18).clearContent();
+    SpreadsheetApp.flush();
     
     try {
       CacheService.getScriptCache().remove('STOK_' + sheetName);
@@ -939,6 +956,7 @@ function editPengeluaranMobileOptimized(data) {
     
     sheet.getRange(data.row, 14).setValue(data.nominal);
     sheet.getRange(data.row, 18).setValue(data.ket);
+    SpreadsheetApp.flush();
     
     try {
       CacheService.getScriptCache().remove('STOK_' + sheetName);
@@ -1146,6 +1164,7 @@ function getAnalisisMingguan(tokoTarget) {
     return response(false, err.toString());
   }
 }
+
 
 /**
  * Setup Trigger Harian untuk rekamSnapshotHarian
