@@ -1072,7 +1072,7 @@ const openModalLapor = (item, field, sysVal) => {
       Swal.fire({ title: 'Mengirim Laporan...', didOpen: () => Swal.showLoading() })
       const res = await callApi('simpanLaporanSalah', payload)
       Swal.close()
-      if (res.success) { Swal.fire('Terkirim', 'Laporan berhasil dikirim.', 'success'); loadStock(true) }
+      if (res.success) { Swal.fire('Terkirim', 'Laporan berhasil dikirim.', 'success'); loadStock(false) }
       else Swal.fire('Gagal', res.msg || 'Gagal mengirim laporan.', 'error')
     }
   })
@@ -1217,7 +1217,7 @@ const handleEditPengeluaran = (item) => {
       Swal.close()
       // ✅ STRICT CHECK (Fix #5)
       if (res && res.success === true) { 
-        await loadStock(true); 
+        await loadStock(false); 
         Swal.fire('Sukses', 'Pengeluaran diperbarui.', 'success') 
       } else { 
         Swal.fire('Gagal', res?.msg || 'Gagal mengupdate.', 'error') 
@@ -1242,7 +1242,7 @@ const handleHapusPengeluaran = (item) => {
       Swal.close()
       // ✅ STRICT CHECK (Fix #5)
       if (res && res.success === true) { 
-        await loadStock(true); 
+        await loadStock(false); 
         Swal.fire('Terhapus', 'Pengeluaran telah dihapus.', 'success') 
       } else { 
         Swal.fire('Gagal', res?.msg || 'Gagal menghapus.', 'error') 
