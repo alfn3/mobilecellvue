@@ -895,56 +895,167 @@ function cariBarisLogOtomatis(sheet, toko, produk, brand) {
 }
 
 function tambahPengeluaranMobile(data) {
+  const timer = new ExecutionTimer(5000) // 5 sec timeout untuk fungsi ini
+  
   try {
-    const ss = SpreadsheetApp.openById(CONFIG.STOK_ID);
-    const sheetName = resolveSheetName(data.toko);
-    const sheet = ss.getSheetByName(sheetName);
-    const vals = sheet.getRange("N15:N28").getValues();
+    // ========== VALIDATION ==========
     
-    let row = -1;
-    for(let i=0; i<vals.length; i++) { 
-      if(vals[i][0] === "" || vals[i][0] === 0) { row = 15+i; break; } 
+    if (!data) {
+      return response(false, "Data pengeluaran tidak diterima")
     }
     
-    if(row === -1) return response(false, "Slot Pengeluaran Penuh");
-    
-    sheet.getRange(row, 14).setValue(data.nominal); 
-    sheet.getRange(row, 18).setValue(data.ket);
-    SpreadsheetApp.flush();
-    
-    try {
-      CacheService.getScriptCache().remove('STOK_' + sheetName);
-      CacheService.getScriptCache().remove('dash_sum_' + sheetName);
-    } catch (e) {
-      Logger.log("Gagal invalidate cache: " + e.toString());
+    const toko = String(data.toko || "").trim().toLowerCase()
+    if (!toko) {
+      return response(false, "Nama toko harus diisi")
     }
     
-    return response(true, "Pengeluaran Ditambahkan", null, { clientAction: "REFRESH_CACHE" });
-  } catch (e) { 
-    return response(false, e.toString()); 
+    const nominal = parseInt(String(data.nominal || "").replace(/[^0-9-]/g, '')) || 0
+    if (nominal === 0) {
+      return response(false, "Nominal pengeluaran harus lebih dari 0")
+    }
+    
+    const ket = String(data.ket || "").trim()
+    if (!ket || ket.length === 0) {
+      return response(false, "Keterangan pengeluaran harus diisi")
+    }
+    
+    if (ket.length > 100) {
+      return response(false, "Keterangan terlalu panjang (max 100 karakter)")
+    }
+
+    // ========== GET SHEET ==========
+    
+    const ss = SpreadsheetApp.openById(CONFIG.STOK_ID)
+    if (!ss) {
+      return response(false, "Spreadsheet tidak ditemukan")
+    }
+    
+    const sheetName = resolveSheetName(toko)
+    const sheet = ss.getSheetByName(sheetName)
+    
+    if (!sheet) {
+      return response(false, `Sheet '${sheetName}' tidak ditemukan untuk toko '${toko}'`)
+    }
+
+    // ========== FIND AVAILABLE SLOT ==========
+    
+    // Pengeluaran disimpan di column N (14) dengan range N15:N28 (14 baris)
+    const range = sheet.getRange("N15:N28")
+    const values = range.getValues()
+    
+    let availableRow = -1
+    let usedCount = 0
+    
+    for (let i = 0; i < values.length; i++) {
+      const cellValue = values[i][0]
+      
+      // Check if cell empty or zero
+      const isEmpty = (cellValue === "" || cellValue === null || cellValue === 0)
+      
+      if (isEmpty && availableRow === -1) {
+        availableRow = 15 + i // row number (1-indexed)
+      }
+      
+      if (!isEmpty) {
+        usedCount++
+      }
+    }
+    
+    if (availableRow === -1) {
+      // Semua slot penuh
+      return response(false, `Pengeluaran penuh (${usedCount}/14 slot terpakai). Hapus yang lama terlebih dahulu.`)
+    }
+
+    // ========== SAVE TO SHEET ==========
+    
+    Logger.log(`📝 [${sheetName}] Saving expense at row ${availableRow}: "${ket}" = ${nominal}`)
+    
+    // Column mapping:
+    // N = Column 14 (nominal)
+    // R = Column 18 (keterangan)
+    sheet.getRange(availableRow, 14).setValue(nominal)
+    sheet.getRange(availableRow, 18).setValue(ket)
+    
+    // Optional: Add timestamp (Column O = 15)
+    const timestamp = Utilities.formatDate(new Date(), Session.getScriptTimeZone(), "dd/MM/yyyy HH:mm")
+    sheet.getRange(availableRow, 15).setValue(timestamp)
+
+    // ========== INVALIDATE CACHE ==========
+    
+    const cache = CacheService.getScriptCache()
+    cache.remove('STOK_' + sheetName)
+    cache.remove('dash_sum_' + sheetName)
+    
+    Logger.log(`✅ Cache invalidated for ${sheetName}`)
+
+    // ========== RETURN SUCCESS ==========
+    
+    timer.logMetric("tambahPengeluaranMobile")
+    
+    return response(
+      true,
+      `Pengeluaran berhasil disimpan (${usedCount + 1}/14)`,
+      {
+        row: availableRow,
+        nominal: nominal,
+        ket: ket,
+        slotUsed: usedCount + 1,
+        slotTotal: 14
+      },
+      {
+        cached: false,
+        clientAction: "REFRESH_CACHE"
+      }
+    )
+
+  } catch (e) {
+    Logger.log(`❌ Error in tambahPengeluaranMobile: ${e.toString()}`)
+    timer.logMetric("tambahPengeluaranMobile_ERROR")
+    return response(false, `System Error: ${e.toString()}`)
   }
 }
 
 function hapusPengeluaranMobile(data) {
+  const timer = new ExecutionTimer(5000)
+  
   try {
-    const ss = SpreadsheetApp.openById(CONFIG.STOK_ID);
-    const sheetName = resolveSheetName(data.toko);
-    const sheet = ss.getSheetByName(sheetName);
-    
-    sheet.getRange(data.row, 14).clearContent();
-    sheet.getRange(data.row, 18).clearContent();
-    SpreadsheetApp.flush();
-    
-    try {
-      CacheService.getScriptCache().remove('STOK_' + sheetName);
-      CacheService.getScriptCache().remove('dash_sum_' + sheetName);
-    } catch (e) {
-      Logger.log("Gagal invalidate cache: " + e.toString());
+    if (!data || !data.row || !data.toko) {
+      return response(false, "Data tidak lengkap")
     }
     
-    return response(true, "Pengeluaran Dihapus", null, { clientAction: "REFRESH_CACHE" });
-  } catch(e) { 
-    return response(false, e.toString()); 
+    const ss = SpreadsheetApp.openById(CONFIG.STOK_ID)
+    const sheetName = resolveSheetName(data.toko)
+    const sheet = ss.getSheetByName(sheetName)
+    
+    if (!sheet) {
+      return response(false, `Sheet '${sheetName}' tidak ditemukan`)
+    }
+    
+    Logger.log(`🗑️ [${sheetName}] Deleting expense at row ${data.row}`)
+    
+    // Clear cells
+    sheet.getRange(data.row, 14).clearContent()  // Column N (nominal)
+    sheet.getRange(data.row, 15).clearContent()  // Column O (timestamp)
+    sheet.getRange(data.row, 18).clearContent()  // Column R (keterangan)
+    
+    // Invalidate cache
+    const cache = CacheService.getScriptCache()
+    cache.remove('STOK_' + sheetName)
+    cache.remove('dash_sum_' + sheetName)
+    
+    timer.logMetric("hapusPengeluaranMobile")
+    
+    return response(
+      true,
+      "Pengeluaran berhasil dihapus",
+      null,
+      { clientAction: "REFRESH_CACHE" }
+    )
+    
+  } catch (e) {
+    Logger.log(`❌ Error in hapusPengeluaranMobile: ${e.toString()}`)
+    timer.logMetric("hapusPengeluaranMobile_ERROR")
+    return response(false, `Error: ${e.toString()}`)
   }
 }
 

@@ -25,7 +25,8 @@
           <input 
             type="text" 
             class="form-control rounded-pill border-0 py-2 ps-4 pe-5" 
-            v-model="searchQuery" 
+            :value="searchQuery" 
+            @input="handleSearch($event.target.value)"
             placeholder="Cari barang..."
           >
           <i class="fa-solid fa-magnifying-glass position-absolute top-50 end-0 translate-middle-y me-3 text-muted"></i>
@@ -430,6 +431,15 @@ const searchQuery = ref('')
 const isHideZero = ref(false)
 const currentKat = ref('Perdana')
 
+// Debounce untuk search (Fix #6)
+let searchTimeout = null
+const handleSearch = (value) => {
+  clearTimeout(searchTimeout)
+  searchTimeout = setTimeout(() => {
+    searchQuery.value = value
+  }, 300)
+}
+
 // Antrian pengeluaran lokal (belum dikirim ke server)
 const savedExpenses = localStorage.getItem('PENDING_EXPENSES')
 const pendingExpenses = ref(savedExpenses ? JSON.parse(savedExpenses) : [])
@@ -440,6 +450,13 @@ onMounted(() => {
 watch(pendingExpenses, (newVal) => {
   localStorage.setItem('PENDING_EXPENSES', JSON.stringify(newVal))
 }, { deep: true })
+
+// ✅ Clear pendingExpenses saat logout
+watch(() => store.user.email, (newVal) => {
+  if (!newVal || newVal === '') {
+    pendingExpenses.value = []
+  }
+})
 
 watch(() => props.activeTab, (newTab) => {
   if (newTab === 'pengeluaran') {
@@ -475,35 +492,42 @@ const moneyColors = [
 
 const changedCount = computed(() => changedKeys.value.length)
 
-const filteredStock = computed(() => {
+// ✅ BETTER: Memoize search results
+const searchResults = computed(() => {
   const q = searchQuery.value.toLowerCase().trim()
+  if (!q) return store.stockCache || []
   
-  return store.stockCache.filter(item => {
-    // 1. Filter Category
-    if (currentKat.value === 'Pengeluaran') {
-      if (item.tipe !== 'uang') return false
-    } else if (currentKat.value === 'Uang') {
-      if (item.tipe !== 'info') return false
-    } else {
-      const matchCat = (item.kategori === currentKat.value) || 
-                       (item.grup === currentKat.value)
-      if (!matchCat) return false
-    }
-    
-    // 2. Filter Search Query
-    const matchSearch = item.nama.toLowerCase().includes(q)
-    if (!matchSearch) return false
-    
-    // 3. Filter Zero Stock Toggles (hanya untuk stok)
-    if (isHideZero.value && item.tipe === 'barang') {
+  return (store.stockCache || []).filter(item => {
+    const namaMatch = item.nama && item.nama.toLowerCase().includes(q)
+    const brandMatch = item.brand && String(item.brand).toLowerCase().includes(q)
+    return namaMatch || brandMatch
+  })
+})
+
+const filteredStock = computed(() => {
+  let items = searchResults.value
+  
+  // 1. Filter Category
+  if (currentKat.value === 'Pengeluaran') {
+    items = items.filter(i => i.tipe === 'uang')
+  } else if (currentKat.value === 'Uang') {
+    items = items.filter(i => i.tipe === 'info')
+  } else {
+    items = items.filter(i => i.kategori === currentKat.value || i.grup === currentKat.value)
+  }
+  
+  // 2. Filter Zero Stock (hanya untuk stok)
+  if (isHideZero.value) {
+    items = items.filter(item => {
+      if (item.tipe !== 'barang') return true
       const awalVal = getNumericValue(item.awal)
       const topupVal = getNumericValue(item.topup)
       const sisaVal = getNumericValue(item.stok)
-      if (awalVal <= 0 && topupVal <= 0 && sisaVal <= 0) return false
-    }
-    
-    return true
-  })
+      return !(awalVal <= 0 && topupVal <= 0 && sisaVal <= 0)
+    })
+  }
+  
+  return items
 })
 
 const getItemKey = (item) => {
@@ -656,123 +680,195 @@ const handleInputMoney = (item, event) => {
   store.updateStockValue(key, num)
 }
 
-// Fetch Stock
-const loadStock = async (isManualRefresh = false) => {
+const loadStock = async (forceRefresh = false) => {
   if (!store.user.store) return
   
   loading.value = true
   
-  const res = await callApi('getStok', { toko: store.user.store }, { forceRefresh: isManualRefresh })
-  loading.value = false
-  
-  if (res.success) {
-    revealedCash.value = []
-    const formatted = res.data.map((item, index) => {
-      const n = (item.nama || "").toLowerCase()
-      const k = (item.kategori || "").toLowerCase()
-      let typeFixed = item.tipe || 'barang'
+  try {
+    const res = await callApi('getStok', { toko: store.user.store }, { forceRefresh })
+    
+    if (res && res.success === true) {
+      revealedCash.value = []
+      const formatted = res.data.map((item, index) => {
+        const n = (item.nama || "").toLowerCase()
+        const k = (item.kategori || "").toLowerCase()
+        let tipeFixed = item.tipe || 'barang'
+        
+        if (k === 'pengeluaran') {
+          tipeFixed = 'uang'
+        } else if (n.includes('bendelan') || k === 'uang' || tipeFixed === 'info') {
+          tipeFixed = 'info'
+        } else if (n.includes('saldo') || n.includes('listrik') || k === 'elektrik') {
+          tipeFixed = 'saldo'
+        }
+        
+        return {
+          ...item,
+          row: item.row || (index + 2),
+          tipe: tipeFixed
+        }
+      })
       
-      if (n.includes('bendelan') || k === 'uang' || typeFixed === 'info') {
-        typeFixed = 'info'
-      } else if (n.includes('saldo') || n.includes('listrik') || k === 'elektrik') {
-        typeFixed = 'saldo'
-      } else if (k === 'pengeluaran') {
-        typeFixed = 'uang'
-      }
+      store.setStockCache(formatted)
       
-      return {
-        ...item,
-        row: item.row || (index + 2),
-        tipe: typeFixed
+      // ✅ Only clear unsaved jika force refresh
+      if (forceRefresh) {
+        store.clearUnsavedChanges()
       }
-    })
-    store.setStockCache(formatted)
-  } else {
-    Swal.fire('Gagal Load Stok', res.msg || 'Terjadi kesalahan.', 'error')
+    } else {
+      console.error("Load stock failed:", res?.msg)
+      Swal.fire('Gagal Load Stok', res?.msg || 'Terjadi kesalahan.', 'error')
+    }
+  } catch (err) {
+    console.error("Error in loadStock:", err)
+    Swal.fire('Error', 'Gagal memuat stok.', 'error')
+  } finally {
+    loading.value = false
   }
 }
 
 // Save All Changes (Stok & Pengeluaran)
-const saveAll = () => {
+const saveAll = async () => {
   const totalChanges = changedCount.value + pendingExpenses.value.length
   if (totalChanges === 0) return
   
-  Swal.fire({
-    title: 'Simpan Data?',
-    text: `Menyimpan ${totalChanges} perubahan ke server`,
-    icon: 'question',
+  // ✅ Add confirmation first (Fix #7)
+  const result = await Swal.fire({
+    title: 'Konfirmasi Simpan',
+    html: `
+      <p>Akan menyimpan:</p>
+      <ul class="text-start">
+        ${changedCount.value > 0 ? `<li>${changedCount.value} perubahan stok</li>` : ''}
+        ${pendingExpenses.value.length > 0 ? `<li>${pendingExpenses.value.length} pengeluaran</li>` : ''}
+      </ul>
+    `,
+    icon: 'warning',
     showCancelButton: true,
     confirmButtonText: 'Ya, Simpan',
     cancelButtonText: 'Batal'
-  }).then(async (result) => {
-    if (result.isConfirmed) {
-      Swal.fire({ title: 'Menyimpan...', didOpen: () => Swal.showLoading() })
-      
-      let allSuccess = true
-      let errMsgs = []
+  })
 
-      // 1. Simpan Stok (jika ada)
-      if (changedCount.value > 0) {
-        let itemsToUpdate = []
-        changedKeys.value.forEach(key => {
-          const item = store.stockCache.find(i => getItemKey(i) === key)
-          if (item) {
-            itemsToUpdate.push({
-              nama: item.nama,
-              kategori: item.kategori,
-              row: item.row,
-              stokBaru: store.unsavedChanges[key],
-              tipe: item.tipe
-            })
-          }
-        })
-        const resStok = await callApi('batchUpdateStok', {
-          toko: store.user.store,
-          user: store.user.name,
-          items: itemsToUpdate
-        })
-        if (resStok.success) {
-          store.clearUnsavedChanges()
-        } else {
-          allSuccess = false
-          errMsgs.push('Stok: ' + (resStok.msg || 'Gagal menyimpan'))
+  if (!result.isConfirmed) return
+
+  Swal.fire({
+    title: 'Menyimpan Perubahan...',
+    html: '<p class="text-muted small">Tunggu sebentar...</p>',
+    didOpen: () => Swal.showLoading(),
+    allowOutsideClick: false,
+    allowEscapeKey: false
+  })
+  
+  let allSuccess = true
+  let errMsgs = []
+  let successCount = 0
+  let failedExpenses = []
+
+  try {
+    // 1. Simpan Stok (jika ada)
+    if (changedCount.value > 0) {
+      let itemsToUpdate = []
+      changedKeys.value.forEach(key => {
+        const item = store.stockCache.find(i => getItemKey(i) === key)
+        if (item) {
+          itemsToUpdate.push({
+            nama: item.nama,
+            kategori: item.kategori,
+            row: item.row,
+            stokBaru: store.unsavedChanges[key],
+            tipe: item.tipe
+          })
         }
+      })
+      const resStok = await callApi('batchUpdateStok', {
+        toko: store.user.store,
+        user: store.user.name,
+        items: itemsToUpdate
+      })
+      
+      // ✅ STRICT CHECK
+      if (resStok && resStok.success === true) {
+        store.clearUnsavedChanges()
+        successCount += itemsToUpdate.length
+      } else {
+        allSuccess = false
+        errMsgs.push(`Stok: ${resStok?.msg || 'Gagal menyimpan'}`)
       }
+    }
 
-      // 2. Simpan Pengeluaran (jika ada)
-      if (pendingExpenses.value.length > 0) {
-        let failedExpenses = []
-        let lastErrorMsg = ''
-        for (const expense of pendingExpenses.value) {
+    // 2. Simpan Pengeluaran (jika ada)
+    if (pendingExpenses.value && pendingExpenses.value.length > 0) {
+      const totalPending = pendingExpenses.value.length
+      let savedCount = 0
+      failedExpenses = []
+
+      for (let i = 0; i < totalPending; i++) {
+        const expense = pendingExpenses.value[i]
+
+        try {
           const resPeng = await callApi('tambahPengeluaran', {
             toko: store.user.store,
             nominal: expense.nominal,
             ket: expense.ket
           })
-          if (!resPeng.success) {
-            failedExpenses.push(expense)
-            lastErrorMsg = resPeng.msg || 'Gagal menyimpan'
+
+          // ✅ STRICT CHECK
+          if (resPeng && resPeng.success === true) {
+            savedCount++
+            successCount++
+          } else {
+            failedExpenses.push({
+              ...expense,
+              error: resPeng?.msg || 'Gagal menyimpan'
+            })
           }
-        }
-        
-        pendingExpenses.value = failedExpenses
-        
-        if (failedExpenses.length > 0) {
-          allSuccess = false
-          errMsgs.push(`Pengeluaran: ${failedExpenses.length} entri gagal (${lastErrorMsg})`)
+        } catch (err) {
+          failedExpenses.push({
+            ...expense,
+            error: err.message || 'Network error'
+          })
         }
       }
 
-      Swal.close()
-      await loadStock(true)
-
-      if (allSuccess) {
-        Swal.fire('Sukses', 'Semua perubahan berhasil disimpan.', 'success')
+      // ✅ ONLY update antrian dengan yang gagal
+      if (failedExpenses.length > 0) {
+        allSuccess = false
+        pendingExpenses.value = failedExpenses
+        errMsgs.push(`Pengeluaran: ${savedCount}/${totalPending} saved`)
       } else {
-        Swal.fire('Sebagian Gagal', errMsgs.join('<br>'), 'warning')
+        // ✅ Clear antrian jika semua OK
+        pendingExpenses.value = []
       }
     }
-  })
+
+    // 3. Refresh (Force)
+    await loadStock(true)
+
+  } catch (globalErr) {
+    allSuccess = false
+    errMsgs.push(`System: ${globalErr.message}`)
+  }
+
+  Swal.close()
+
+  if (allSuccess) {
+    Swal.fire({
+      icon: 'success',
+      title: 'Sukses!',
+      html: `<p class="mb-0">${successCount} data disimpan</p>`,
+      timer: 2000,
+      showConfirmButton: false
+    })
+  } else {
+    Swal.fire({
+      icon: 'warning',
+      title: 'Sebagian Gagal',
+      html: `<div class="small text-start">
+        ${errMsgs.map(m => `<p>⚠️ ${m}</p>`).join('')}
+      </div>`,
+      confirmButtonText: 'OK'
+    })
+  }
 }
 
 // Hapus dari antrian
@@ -1002,11 +1098,9 @@ const handleTambahPengeluaran = () => {
     title: 'Tambah Pengeluaran',
     html: `
       <div class="mb-2">
-        <label class="form-label small text-muted fw-semibold mb-1">Nominal</label>
         <input type="text" inputmode="numeric" id="peng_nom" class="form-control" placeholder="Rp 0">
       </div>
       <div>
-        <label class="form-label small text-muted fw-semibold mb-1">Keterangan</label>
         <input type="text" id="peng_ket" class="form-control" placeholder="Keterangan pengeluaran">
       </div>
     `,
@@ -1121,8 +1215,13 @@ const handleEditPengeluaran = (item) => {
         nominal: result.value.nominal, ket: result.value.ket
       })
       Swal.close()
-      if (res.success) { await loadStock(true); Swal.fire('Sukses', 'Pengeluaran diperbarui.', 'success') }
-      else Swal.fire('Gagal', res.msg || 'Gagal mengupdate.', 'error')
+      // ✅ STRICT CHECK (Fix #5)
+      if (res && res.success === true) { 
+        await loadStock(true); 
+        Swal.fire('Sukses', 'Pengeluaran diperbarui.', 'success') 
+      } else { 
+        Swal.fire('Gagal', res?.msg || 'Gagal mengupdate.', 'error') 
+      }
     }
   })
 }
@@ -1141,8 +1240,13 @@ const handleHapusPengeluaran = (item) => {
       Swal.fire({ title: 'Menghapus...', didOpen: () => Swal.showLoading() })
       const res = await callApi('hapusPengeluaran', { toko: store.user.store, row: item.row })
       Swal.close()
-      if (res.success) { await loadStock(true); Swal.fire('Terhapus', 'Pengeluaran telah dihapus.', 'success') }
-      else Swal.fire('Gagal', res.msg || 'Gagal menghapus.', 'error')
+      // ✅ STRICT CHECK (Fix #5)
+      if (res && res.success === true) { 
+        await loadStock(true); 
+        Swal.fire('Terhapus', 'Pengeluaran telah dihapus.', 'success') 
+      } else { 
+        Swal.fire('Gagal', res?.msg || 'Gagal menghapus.', 'error') 
+      }
     }
   })
 }

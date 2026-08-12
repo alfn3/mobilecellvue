@@ -512,12 +512,12 @@ const fetchDashboard = async (isManualRefresh = false) => {
         const k = (item.kategori || "").toLowerCase()
         let typeFixed = item.tipe || 'barang'
         
-        if (n.includes('bendelan') || k === 'uang' || typeFixed === 'info') {
+        if (k === 'pengeluaran') {
+          typeFixed = 'uang'
+        } else if (n.includes('bendelan') || k === 'uang' || typeFixed === 'info') {
           typeFixed = 'info'
         } else if (n.includes('saldo') || n.includes('listrik') || k === 'elektrik') {
           typeFixed = 'saldo'
-        } else if (k === 'pengeluaran') {
-          typeFixed = 'uang'
         }
         
         return {

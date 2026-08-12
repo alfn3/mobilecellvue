@@ -88,6 +88,11 @@ export const store = reactive({
     localStorage.removeItem('IS_ABSEN');
     localStorage.removeItem('JAM_MASUK');
     localStorage.removeItem('LOGIN_DATE');
+    
+    // ✅ Clear pendingExpenses juga
+    try {
+      localStorage.removeItem('PENDING_EXPENSES');
+    } catch (e) {}
   }
 })
 
