@@ -796,48 +796,24 @@ const saveAll = async () => {
       }
     }
 
-    // 2. Simpan Pengeluaran (jika ada)
+    // 2. Simpan Pengeluaran (Batch)
     if (pendingExpenses.value && pendingExpenses.value.length > 0) {
-      const totalPending = pendingExpenses.value.length
-      let savedCount = 0
-      failedExpenses = []
+      const expensesToSave = pendingExpenses.value.map(exp => ({
+        nominal: exp.nominal,
+        ket: exp.ket
+      }));
+      
+      const resPeng = await callApi('batchTambahPengeluaran', {
+        toko: store.user.store,
+        expenses: expensesToSave
+      });
 
-      for (let i = 0; i < totalPending; i++) {
-        const expense = pendingExpenses.value[i]
-
-        try {
-          const resPeng = await callApi('tambahPengeluaran', {
-            toko: store.user.store,
-            nominal: expense.nominal,
-            ket: expense.ket
-          })
-
-          // ✅ STRICT CHECK
-          if (resPeng && resPeng.success === true) {
-            savedCount++
-            successCount++
-          } else {
-            failedExpenses.push({
-              ...expense,
-              error: resPeng?.msg || 'Gagal menyimpan'
-            })
-          }
-        } catch (err) {
-          failedExpenses.push({
-            ...expense,
-            error: err.message || 'Network error'
-          })
-        }
-      }
-
-      // ✅ ONLY update antrian dengan yang gagal
-      if (failedExpenses.length > 0) {
-        allSuccess = false
-        pendingExpenses.value = failedExpenses
-        errMsgs.push(`Pengeluaran: ${savedCount}/${totalPending} saved`)
+      if (resPeng && resPeng.success === true) {
+        successCount += expensesToSave.length;
+        pendingExpenses.value = []; // Clear antrian
       } else {
-        // ✅ Clear antrian jika semua OK
-        pendingExpenses.value = []
+        allSuccess = false;
+        errMsgs.push(`Pengeluaran: ${resPeng?.msg || 'Gagal menyimpan batch'}`);
       }
     }
 

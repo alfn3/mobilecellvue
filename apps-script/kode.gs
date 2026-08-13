@@ -53,6 +53,12 @@ class ExecutionTimer {
     return this.getElapsed() > CONFIG.SLOW_EXECUTION_THRESHOLD;
   }
 
+  logError(actionName, errorMsg) {
+    const elapsed = this.getElapsed();
+    Logger.log(`❌ [ERROR] ${actionName}: ${errorMsg} (${elapsed}ms)`);
+    logExecutionMetric(actionName, elapsed, "ERROR", errorMsg);
+  }
+
   logMetric(actionName) {
     const elapsed = this.getElapsed();
     const status = this.isTimeout() ? "TIMEOUT" : "OK";
@@ -61,22 +67,27 @@ class ExecutionTimer {
     Logger.log(`${level} [${status}] ${actionName}: ${elapsed}ms`);
     
     if (this.isSlow() || status === "TIMEOUT") {
-      logExecutionMetric(actionName, elapsed, status);
+      logExecutionMetric(actionName, elapsed, status, "");
     }
   }
 }
 
-function logExecutionMetric(action, executionTime, status) {
+function logExecutionMetric(action, executionTime, status, errorMsg = "") {
   try {
     const ss = SpreadsheetApp.openById(CONFIG.DB_ID);
     let sheet = ss.getSheetByName("execution_metrics");
     
     if (!sheet) {
       sheet = ss.insertSheet("execution_metrics");
-      sheet.appendRow(["Timestamp", "Action", "Execution Time (ms)", "Status"]);
+      sheet.appendRow(["Timestamp", "Action", "Execution Time (ms)", "Status", "Error Message"]);
     }
     
-    sheet.appendRow([new Date(), action, executionTime, status]);
+    // Auto-update header if Error Message column is missing
+    if (sheet.getRange("E1").getValue() !== "Error Message") {
+      sheet.getRange("E1").setValue("Error Message");
+    }
+    
+    sheet.appendRow([new Date(), action, executionTime, status, String(errorMsg)]);
   } catch (err) {
     Logger.log("Metrics logging error: " + err);
   }
@@ -109,6 +120,9 @@ function doPost(e) {
         break;
       case 'batchUpdateStok':
         result = batchUpdateStokMobileOptimized(payload);
+        break;
+      case 'batchTambahPengeluaran':
+        result = batchTambahPengeluaranMobile(payload);
         break;
       case 'gantiKataSandi':
         result = gantiKataSandi(payload);
@@ -153,7 +167,7 @@ function doPost(e) {
                          .setMimeType(ContentService.MimeType.JSON);
 
   } catch (error) {
-    timer.logMetric("ERROR_" + action);
+    timer.logError("doPost_GLOBAL_" + action, error.toString());
     return ContentService.createTextOutput(JSON.stringify(
       response(false, error.toString())
     )).setMimeType(ContentService.MimeType.JSON);
@@ -541,6 +555,8 @@ function batchUpdateStokMobileOptimized(payload) {
     };
 
   } catch (e) {
+    const timer = new ExecutionTimer(8000);
+    timer.logError("batchUpdateStokMobileOptimized", e.toString());
     return { success: false, msg: "Gagal: " + e.toString() };
   }
 }
@@ -816,9 +832,14 @@ function editLaporanSalahMobile(data) {
                       `*Editor:* ${data.user}`;
     kirimNotifWA(textNotif);
 
-    try { CacheService.getScriptCache().remove('REPORTED_' + resolveSheetName(data.toko)); } catch(e){}
+    try {
+      CacheService.getScriptCache().remove('REPORTED_' + resolveSheetName(data.toko));
+      CacheService.getScriptCache().remove('STOK_' + resolveSheetName(data.toko));
+    } catch(e){}
     return response(true, "Laporan diupdate", null, { clientAction: "REFRESH_CACHE" });
   } catch(e) { 
+    const timer = new ExecutionTimer(8000);
+    timer.logError("editLaporanSalahMobile", e.toString());
     return response(false, e.toString()); 
   }
 }
@@ -846,9 +867,14 @@ function hapusLaporanSalahMobile(data) {
                       `*Penghapus:* ${data.user}`;
     kirimNotifWA(textNotif);
 
-    try { CacheService.getScriptCache().remove('REPORTED_' + resolveSheetName(data.toko)); } catch(e){}
+    try {
+      CacheService.getScriptCache().remove('REPORTED_' + resolveSheetName(data.toko));
+      CacheService.getScriptCache().remove('STOK_' + resolveSheetName(data.toko));
+    } catch(e){}
     return response(true, "Laporan dihapus", null, { clientAction: "REFRESH_CACHE" });
   } catch(e) { 
+    const timer = new ExecutionTimer(8000);
+    timer.logError("hapusLaporanSalahMobile", e.toString());
     return response(false, e.toString()); 
   }
 }
@@ -1015,6 +1041,64 @@ function tambahPengeluaranMobile(data) {
   }
 }
 
+function batchTambahPengeluaranMobile(data) {
+  const timer = new ExecutionTimer(8000);
+  try {
+    if (!data || !data.expenses || data.expenses.length === 0) {
+      return response(false, "Tidak ada data pengeluaran");
+    }
+    const toko = String(data.toko || "").trim().toLowerCase();
+    const sheetName = resolveSheetName(toko);
+    const ss = SpreadsheetApp.openById(CONFIG.STOK_ID);
+    const sheet = ss.getSheetByName(sheetName);
+    if (!sheet) return response(false, "Sheet tidak ditemukan");
+
+    const range = sheet.getRange("N15:N28");
+    const values = range.getValues();
+    let availableRows = [];
+    
+    for (let i = 0; i < values.length; i++) {
+      const cellValue = values[i][0];
+      if (cellValue === "" || cellValue === null || cellValue === 0) {
+        availableRows.push(15 + i);
+      }
+    }
+
+    if (availableRows.length < data.expenses.length) {
+      return response(false, `Slot pengeluaran tidak cukup. Tersisa ${availableRows.length} slot.`);
+    }
+
+    // Get range for batch update: N15:R28 (Row 15-28, Col 14-18)
+    const updateRange = sheet.getRange("N15:R28");
+    const updateValues = updateRange.getValues(); // 14 rows, 5 cols
+    const timestamp = Utilities.formatDate(new Date(), Session.getScriptTimeZone(), "dd/MM/yyyy HH:mm");
+    
+    let updated = 0;
+    data.expenses.forEach(exp => {
+      const rowIdx = availableRows.shift() - 15; // 0 to 13
+      const nominal = parseInt(String(exp.nominal).replace(/[^0-9-]/g, '')) || 0;
+      const ket = String(exp.ket || "").trim();
+      
+      updateValues[rowIdx][0] = nominal; // N
+      updateValues[rowIdx][1] = timestamp; // O
+      updateValues[rowIdx][4] = ket; // R
+      updated++;
+    });
+
+    updateRange.setValues(updateValues);
+
+    const cache = CacheService.getScriptCache();
+    cache.remove('STOK_' + sheetName);
+    cache.remove('dash_sum_' + sheetName);
+
+    timer.logMetric("batchTambahPengeluaranMobile");
+    return response(true, `${updated} Pengeluaran berhasil disimpan`, null, { clientAction: "REFRESH_CACHE" });
+  } catch (e) {
+    timer.logError("batchTambahPengeluaranMobile", e.toString());
+    return response(false, "System Error: " + e.toString());
+  }
+}
+
 function hapusPengeluaranMobile(data) {
   const timer = new ExecutionTimer(5000)
   
@@ -1053,9 +1137,8 @@ function hapusPengeluaranMobile(data) {
     )
     
   } catch (e) {
-    Logger.log(`❌ Error in hapusPengeluaranMobile: ${e.toString()}`)
-    timer.logMetric("hapusPengeluaranMobile_ERROR")
-    return response(false, `Error: ${e.toString()}`)
+    timer.logError("hapusPengeluaranMobile", e.toString());
+    return response(false, `Error: ${e.toString()}`);
   }
 }
 
@@ -1078,6 +1161,8 @@ function editPengeluaranMobileOptimized(data) {
     
     return response(true, "Pengeluaran Diupdate", null, { clientAction: "REFRESH_CACHE" });
   } catch(e) { 
+    const timer = new ExecutionTimer(8000);
+    timer.logError("editPengeluaranMobileOptimized", e.toString());
     return response(false, e.toString()); 
   }
 }
