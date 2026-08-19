@@ -711,11 +711,6 @@ const loadStock = async (forceRefresh = false) => {
       })
       
       store.setStockCache(formatted)
-      
-      // ✅ Only clear unsaved jika force refresh
-      if (forceRefresh) {
-        store.clearUnsavedChanges()
-      }
     } else {
       console.error("Load stock failed:", res?.msg)
       Swal.fire('Gagal Load Stok', res?.msg || 'Terjadi kesalahan.', 'error')

@@ -175,6 +175,17 @@ function doPost(e) {
 }
 
 // ============================================================================
+// GET REQUEST HANDLER (Mencegah error di log jika URL dibuka langsung)
+// ============================================================================
+function doGet(e) {
+  return ContentService.createTextOutput(JSON.stringify({
+    success: true,
+    msg: "Backend API MobileCell berjalan normal. Silakan gunakan POST method.",
+    timestamp: new Date().getTime()
+  })).setMimeType(ContentService.MimeType.JSON);
+}
+
+// ============================================================================
 // ✅ OPTIMIZED: getStokMobileOptimized dengan HYBRID CACHING
 // ============================================================================
 
