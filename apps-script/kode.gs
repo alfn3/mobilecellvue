@@ -248,11 +248,29 @@ function getStokMobileOptimized(toko, forceRefresh = false) {
       if(r[0] && r[0]!=='-') curBrand = r[0]; 
       if(r[1] && r[1]!=='#N/A') results.push(parseStandard(r, 'Voucher', curBrand, realIdx)); 
     });
+    let curAccBrand = '-';
+    const validAccBrands = ['KABEL DATA TOPLES', 'OTG', 'KEPALA CHARGER', 'EARPHONE', 'MMC', 'FLASH DISK', 'TRAVEL CHARGER', 'POWERBANK'];
+
     rawValues.slice(133, 305).forEach((r, i) => { 
       let realIdx = i + 133;
       if(r[0] && r[0] !== "#N/A" && r[0] !== "-") {
+        const colB = String(r[0]).trim();
+        const colBUpper = colB.toUpperCase();
+
+        const matchedBrand = validAccBrands.find(b => colBUpper.includes(b));
+        
+        if (matchedBrand) {
+          curAccBrand = matchedBrand;
+          // Cek apakah ini sekadar baris header (tidak ada stok & harga)
+          const stokAwal = String(r[2] || "").trim();
+          const harga = String(r[6] || "").trim();
+          if (stokAwal === "" && harga === "") {
+             return; // Skip baris murni header
+          }
+        }
+
         results.push({ 
-          kategori: 'Aksesoris', brand: 'Aksesoris', nama: r[0], 
+          kategori: 'Aksesoris', brand: curAccBrand, nama: colB, 
           awal: r[2], topup: r[3], stok: r[4], harga: r[6]||'0', 
           tipe: 'barang', row: START_ROW_RAW + realIdx
         });

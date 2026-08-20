@@ -195,10 +195,10 @@
                 <div class="mt-1 d-flex align-items-center flex-wrap gap-1">
                   <span 
                     class="badge text-white rounded-pill" 
-                    :style="{ backgroundColor: getProviderColor(item.brand) }"
+                    :style="{ backgroundColor: getProviderColor(getDisplayBrand(item)) }"
                     style="font-size: 0.6rem;"
                   >
-                    {{ item.brand || 'Umum' }}
+                    {{ getDisplayBrand(item) }}
                   </span>
                   <span v-if="getNumericValue(item.harga) > 0" class="badge bg-success bg-opacity-75" style="font-size: 0.6rem;">
                     {{ formatRp(getNumericValue(item.harga)) }}
@@ -214,46 +214,60 @@
                 </div>
               </div>
             </div>
-            <div class="row g-1 align-items-end">
-              <div class="col-3">
+            <div class="row g-1 align-items-center">
+              <div class="col-4">
                 <div 
-                  class="box-info box-awal cursor-pointer" 
+                  class="box-info box-awal cursor-pointer d-flex flex-column" style="height: 46px; padding: 4px;"
                   :class="{ 'reported-error': item.awalReported }"
                   @click="openModalLapor(item, 'Awal', item.awal)"
                 >
-                  <span class="label-tiny">
-                    AWAL 
-                    <span v-if="item.awalReported" class="text-danger fw-bold ms-1" style="font-size:0.65rem;">
-                      ⚠️{{ item.awalReportedVal }}
+                  <div class="d-flex align-items-center justify-content-center" style="height: 14px;">
+                    <span class="label-tiny text-secondary mb-0 fw-bold">
+                      AWAL
+                      <span v-if="item.awalReported" class="text-danger fw-bold ms-1" style="font-size:0.65rem;">
+                        ⚠️{{ item.awalReportedVal }}
+                      </span>
                     </span>
-                  </span>
-                  <span class="val-tiny">{{ item.awal }}</span>
+                  </div>
+                  <div class="d-flex align-items-center justify-content-center mt-1" style="height: 20px;">
+                    <span class="val-tiny">{{ item.awal }}</span>
+                  </div>
                 </div>
               </div>
-              <div class="col-3">
+              <div class="col-4">
                 <div 
-                  class="box-info cursor-pointer" 
+                  class="box-info cursor-pointer d-flex flex-column" style="height: 46px; padding: 4px;"
                   :class="[getNumericValue(item.topup) > 0 ? 'box-topup' : 'box-awal', { 'reported-error': item.topupReported }]"
                   @click="openModalLapor(item, 'Topup', item.topup)"
                 >
-                  <span class="label-tiny" :class="{'opacity-75': getNumericValue(item.topup) === 0}">
-                    TOPUP 
-                    <span v-if="item.topupReported" class="text-danger fw-bold ms-1" style="font-size:0.65rem;">
-                      ⚠️{{ item.topupReportedVal }}
+                  <div class="d-flex align-items-center justify-content-center" style="height: 14px;">
+                    <span class="label-tiny text-secondary mb-0 fw-bold" :class="{'opacity-75': getNumericValue(item.topup) === 0}">
+                      TOPUP 
+                      <span v-if="item.topupReported" class="text-danger fw-bold ms-1" style="font-size:0.65rem;">
+                        ⚠️{{ item.topupReportedVal }}
+                      </span>
                     </span>
-                  </span>
-                  <span class="val-tiny" :class="{'opacity-75': getNumericValue(item.topup) === 0}">+{{ item.topup }}</span>
+                  </div>
+                  <div class="d-flex align-items-center justify-content-center mt-1" style="height: 20px;">
+                    <span class="val-tiny" :class="{'opacity-75': getNumericValue(item.topup) === 0}">{{ item.topup ? '+' + item.topup : '' }}</span>
+                  </div>
                 </div>
               </div>
-              <div class="col-6 ps-2">
-                <span class="label-tiny text-secondary fw-semibold mb-1 d-block text-end pe-1">SISA</span>
-                <input 
-                  type="number" 
-                  class="input-sisa-mini" 
-                  :value="getLocalValue(item)"
-                  @input="handleInputBarang(item, $event)"
-                  placeholder="0"
-                >
+              <div class="col-4">
+                <div class="box-info bg-white d-flex flex-column" style="height: 46px; padding: 4px; border: 1px solid #ced4da; border-radius: 6px; box-shadow: 0 1px 2px rgba(0,0,0,0.05);">
+                  <div class="d-flex align-items-center justify-content-center" style="height: 14px;">
+                    <span class="label-tiny text-primary mb-0 fw-bold">SISA</span>
+                  </div>
+                  <div class="d-flex align-items-center justify-content-center mt-1" style="height: 20px;">
+                    <input 
+                      type="number" 
+                      class="border-0 bg-transparent text-center fw-bold w-100 p-0 m-0" 
+                      style="font-size: 0.95rem; outline: none; line-height: 1; color: #212529; height: 100%;"
+                      :value="getLocalValue(item)"
+                      @input="handleInputBarang(item, $event)"
+                    >
+                  </div>
+                </div>
               </div>
             </div>
           </div>
@@ -278,46 +292,61 @@
                 </div>
               </div>
             </div>
-            <div class="row g-1 align-items-end">
-              <div class="col-3">
+            <div class="row g-1 align-items-center">
+              <div class="col-4">
                 <div 
-                  class="box-info box-awal cursor-pointer" 
+                  class="box-info box-awal cursor-pointer d-flex flex-column" style="height: 46px; padding: 4px;"
                   :class="{ 'reported-error': item.awalReported }"
                   @click="openModalLapor(item, 'Awal', item.awal)"
                 >
-                  <span class="label-tiny">
-                    AWAL 
-                    <span v-if="item.awalReported" class="text-danger fw-bold ms-1" style="font-size:0.6rem;">
-                      ⚠️{{ formatRp(item.awalReportedVal) }}
+                  <div class="d-flex align-items-center justify-content-center" style="height: 14px;">
+                    <span class="label-tiny text-secondary mb-0 fw-bold">
+                      AWAL
+                      <span v-if="item.awalReported" class="text-danger fw-bold ms-1" style="font-size:0.6rem;">
+                        ⚠️{{ formatRp(item.awalReportedVal) }}
+                      </span>
                     </span>
-                  </span>
-                  <span class="val-tiny">{{ formatRp(getNumericValue(item.awal)) }}</span>
+                  </div>
+                  <div class="d-flex align-items-center justify-content-center mt-1" style="height: 20px;">
+                    <span class="val-tiny">{{ getNumericValue(item.awal) === 0 ? '' : formatRp(getNumericValue(item.awal)) }}</span>
+                  </div>
                 </div>
               </div>
-              <div class="col-3">
+              <div class="col-4">
                 <div 
-                  class="box-info cursor-pointer" 
+                  class="box-info cursor-pointer d-flex flex-column" style="height: 46px; padding: 4px;"
                   :class="[getNumericValue(item.topup) > 0 ? 'box-topup' : 'box-awal', { 'reported-error': item.topupReported }]"
                   @click="openModalLapor(item, 'Topup', item.topup)"
                 >
-                  <span class="label-tiny" :class="{'opacity-75': getNumericValue(item.topup) === 0}">
-                    TOPUP 
-                    <span v-if="item.topupReported" class="text-danger fw-bold ms-1" style="font-size:0.6rem;">
-                      ⚠️{{ formatRp(item.topupReportedVal) }}
+                  <div class="d-flex align-items-center justify-content-center" style="height: 14px;">
+                    <span class="label-tiny text-secondary mb-0 fw-bold" :class="{'opacity-75': getNumericValue(item.topup) === 0}">
+                      TOPUP 
+                      <span v-if="item.topupReported" class="text-danger fw-bold ms-1" style="font-size:0.6rem;">
+                        ⚠️{{ formatRp(item.topupReportedVal) }}
+                      </span>
                     </span>
-                  </span>
-                  <span class="val-tiny" :class="{'opacity-75': getNumericValue(item.topup) === 0}">+{{ formatRp(getNumericValue(item.topup)) }}</span>
+                  </div>
+                  <div class="d-flex align-items-center justify-content-center mt-1" style="height: 20px;">
+                    <span class="val-tiny" :class="{'opacity-75': getNumericValue(item.topup) === 0}">{{ getNumericValue(item.topup) === 0 ? '' : '+' + formatRp(getNumericValue(item.topup)) }}</span>
+                  </div>
                 </div>
               </div>
-              <div class="col-6 ps-2">
-                <span class="label-tiny text-secondary fw-semibold mb-1 d-block text-end pe-1">SISA</span>
-                <input 
-                  type="text" 
-                  inputmode="numeric" 
-                  class="input-sisa-mini" 
-                  :value="formatRp(getLocalValue(item))"
-                  @input="handleInputMoney(item, $event)"
-                >
+              <div class="col-4">
+                <div class="box-info bg-white d-flex flex-column" style="height: 46px; padding: 4px; border: 1px solid #ced4da; border-radius: 6px; box-shadow: 0 1px 2px rgba(0,0,0,0.05);">
+                  <div class="d-flex align-items-center justify-content-center" style="height: 14px;">
+                    <span class="label-tiny text-primary mb-0 fw-bold">SISA</span>
+                  </div>
+                  <div class="d-flex align-items-center justify-content-center mt-1" style="height: 20px;">
+                    <input 
+                      type="text" 
+                      inputmode="numeric" 
+                      class="border-0 bg-transparent text-center fw-bold w-100 p-0 m-0" 
+                      style="font-size: 0.95rem; outline: none; line-height: 1; color: #212529; height: 100%;"
+                      :value="getLocalValue(item) === '' ? '' : formatRp(getLocalValue(item))"
+                      @input="handleInputMoney(item, $event)"
+                    >
+                  </div>
+                </div>
               </div>
             </div>
           </div>
@@ -540,6 +569,7 @@ const getLocalValue = (item) => {
     return store.unsavedChanges[key]
   }
   const rawStr = String(item.tipe === 'barang' || item.tipe === 'saldo' ? item.stok : item.harga)
+  if (rawStr.trim() === '') return ''
   return getNumericValue(rawStr)
 }
 
@@ -553,6 +583,7 @@ const getTerjualBarang = (item) => {
   const awal = getNumericValue(item.awal)
   const topup = getNumericValue(item.topup)
   const sisa = getLocalValue(item)
+  if (sisa === '') return ''
   return (awal + topup) - sisa
 }
 
@@ -560,6 +591,7 @@ const getTerjualSaldo = (item) => {
   const awal = getNumericValue(item.awal)
   const topup = getNumericValue(item.topup)
   const sisa = getLocalValue(item)
+  if (sisa === '') return ''
   return (awal + topup) - sisa
 }
 
@@ -638,15 +670,36 @@ const getMoneyCfg = (item) => {
   return moneyColors[item.urut] || { grad: "linear-gradient(135deg,#555,#777)", icon: "fa-wallet", label: item.nama }
 }
 
+const getDisplayBrand = (item) => {
+  const k = (item.kategori || "").toLowerCase()
+  let b = item.brand || '-'
+  if (k === 'aksesoris' && b === '-') {
+    return 'KABEL DATA TOPLES'
+  }
+  return b !== '-' ? b : 'Umum'
+}
+
 const getProviderColor = (brand) => {
   if (!brand) return '#6c757d'
   const b = brand.toLowerCase()
+  // Provider Seluler
   if (b.includes('telkomsel') || b.includes('simpati') || b.includes('as')) return '#dc3545'
   if (b.includes('indosat') || b.includes('im3')) return '#fd7e14'
   if (b.includes('xl')) return '#0d6efd'
   if (b.includes('axis')) return '#6f42c1'
   if (b.includes('smartfren')) return '#e83e8c'
   if (b.includes('tri') || b.includes('three')) return '#212529'
+  
+  // Aksesoris
+  if (b.includes('kabel data toples')) return '#198754'
+  if (b.includes('otg')) return '#6610f2'
+  if (b.includes('kepala charger')) return '#d63384'
+  if (b.includes('earphone')) return '#0dcaf0'
+  if (b.includes('mmc')) return '#fd7e14'
+  if (b.includes('flash disk') || b.includes('flashdisk')) return '#e6a800' // Darker yellow for text contrast
+  if (b.includes('travel charger')) return '#dc3545'
+  if (b.includes('powerbank') || b.includes('power bank')) return '#0d6efd'
+
   return '#6c757d'
 }
 
@@ -669,14 +722,20 @@ const formatRpInput = (rawStr) => {
 
 const handleInputBarang = (item, event) => {
   const key = getItemKey(item)
-  const val = parseInt(event.target.value) || 0
+  const raw = event.target.value
+  const val = raw === '' ? '' : (parseInt(raw) || 0)
   store.updateStockValue(key, val)
 }
 
 const handleInputMoney = (item, event) => {
   const key = getItemKey(item)
-  let num = parseInt(event.target.value.replace(/\D/g, '')) || 0
-  if (event.target.value.includes('-')) num = -num
+  const raw = event.target.value
+  if (raw === '') {
+    store.updateStockValue(key, '')
+    return
+  }
+  let num = parseInt(raw.replace(/\D/g, '')) || 0
+  if (raw.includes('-')) num = -num
   store.updateStockValue(key, num)
 }
 
@@ -694,6 +753,11 @@ const loadStock = async (forceRefresh = false) => {
         const n = (item.nama || "").toLowerCase()
         const k = (item.kategori || "").toLowerCase()
         let tipeFixed = item.tipe || 'barang'
+        let brandFixed = item.brand || '-'
+        
+        if (k === 'aksesoris' && brandFixed === '-') {
+          brandFixed = 'KABEL DATA TOPLES'
+        }
         
         if (k === 'pengeluaran') {
           tipeFixed = 'uang'
@@ -705,6 +769,7 @@ const loadStock = async (forceRefresh = false) => {
         
         return {
           ...item,
+          brand: brandFixed,
           row: item.row || (index + 2),
           tipe: tipeFixed
         }
@@ -1286,7 +1351,8 @@ defineExpose({ loadStock })
 
 .val-tiny { 
   font-weight: bold; 
-  font-size: 0.85rem; 
+  font-size: 0.95rem; 
+  line-height: 1;
 }
 
 .input-sisa-mini { 
