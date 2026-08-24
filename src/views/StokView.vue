@@ -583,16 +583,16 @@ const getTerjualBarang = (item) => {
   const awal = getNumericValue(item.awal)
   const topup = getNumericValue(item.topup)
   const sisa = getLocalValue(item)
-  if (sisa === '') return ''
-  return (awal + topup) - sisa
+  const finalSisa = sisa === '' ? 0 : sisa
+  return (awal + topup) - finalSisa
 }
 
 const getTerjualSaldo = (item) => {
   const awal = getNumericValue(item.awal)
   const topup = getNumericValue(item.topup)
   const sisa = getLocalValue(item)
-  if (sisa === '') return ''
-  return (awal + topup) - sisa
+  const finalSisa = sisa === '' ? 0 : sisa
+  return (awal + topup) - finalSisa
 }
 
 const revealedCash = ref([])
