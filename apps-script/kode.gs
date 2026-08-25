@@ -1356,30 +1356,39 @@ function getAnalisisMingguan(tokoTarget) {
       // Bandingkan juga dengan resolveSheetName agar konsisten
       if (target && resolveSheetName(rowToko) !== target) continue;
       
-      const produkKey = data[i][4]; // Gunakan nama produk sebagai key
+      const kategori = data[i][2];
+      const brand = data[i][3];
+      const nama = data[i][4];
+      const produkKey = `${kategori}_${brand}_${nama}`; // Gunakan kombinasi sebagai key
       const terjual = parseInt(data[i][5]) || 0;
       
       if (!summary[produkKey]) {
         summary[produkKey] = {
-          kategori: data[i][2],
-          brand: data[i][3],
-          nama: data[i][4],
+          kategori: kategori,
+          brand: brand,
+          nama: nama,
           totalTerjual: 0,
-          hariTerekam: 0
+          hariTerekam: 0,
+          minTerjual: Infinity,
+          maxTerjual: -Infinity
         };
       }
       
       summary[produkKey].totalTerjual += terjual;
       summary[produkKey].hariTerekam += 1;
+      if (terjual < summary[produkKey].minTerjual) summary[produkKey].minTerjual = terjual;
+      if (terjual > summary[produkKey].maxTerjual) summary[produkKey].maxTerjual = terjual;
     }
     
     // Format response jadi array dan hitung rata-rata
     const results = Object.keys(summary).map(key => {
       const item = summary[key];
-      const rataRata = item.hariTerekam > 0 ? (item.totalTerjual / item.hariTerekam).toFixed(1) : 0;
+      const rataRata = item.hariTerekam > 0 ? Math.round(item.totalTerjual / item.hariTerekam) : 0;
       return {
         ...item,
-        rataRata: parseFloat(rataRata)
+        rataRata: rataRata,
+        minTerjual: item.minTerjual === Infinity ? 0 : item.minTerjual,
+        maxTerjual: item.maxTerjual === -Infinity ? 0 : item.maxTerjual
       };
     });
     

@@ -249,7 +249,7 @@
                     </span>
                   </div>
                   <div class="d-flex align-items-center justify-content-center mt-1" style="height: 20px;">
-                    <span class="val-tiny" :class="{'opacity-75': getNumericValue(item.topup) === 0}">{{ item.topup ? '+' + item.topup : '' }}</span>
+                    <span class="val-tiny" :class="{'opacity-75': getNumericValue(item.topup) === 0}">{{ getNumericValue(item.topup) === 0 ? '' : (getNumericValue(item.topup) > 0 ? '+' + item.topup : item.topup) }}</span>
                   </div>
                 </div>
               </div>
@@ -327,7 +327,7 @@
                     </span>
                   </div>
                   <div class="d-flex align-items-center justify-content-center mt-1" style="height: 20px;">
-                    <span class="val-tiny" :class="{'opacity-75': getNumericValue(item.topup) === 0}">{{ getNumericValue(item.topup) === 0 ? '' : '+' + formatRp(getNumericValue(item.topup)) }}</span>
+                    <span class="val-tiny" :class="{'opacity-75': getNumericValue(item.topup) === 0}">{{ getNumericValue(item.topup) === 0 ? '' : (getNumericValue(item.topup) > 0 ? '+' + formatRp(getNumericValue(item.topup)) : formatRp(getNumericValue(item.topup))) }}</span>
                   </div>
                 </div>
               </div>

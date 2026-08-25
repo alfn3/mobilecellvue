@@ -142,22 +142,28 @@
                 <span class="small text-danger fw-bold">{{ filteredAnalisis.length }} Potensi Salah Input!</span>
               </div>
             </div>
-            <button class="btn btn-warning btn-sm fw-bold rounded-pill shadow-sm px-3" @click="bukaAnalisis">Detail</button>
+            <button class="btn btn-light btn-sm fw-bold rounded-pill shadow-sm px-3 border" @click="fetchAnalisis" :disabled="loadingAnalisis">
+              <i class="fa-solid fa-sync" :class="{'fa-spin': loadingAnalisis}"></i>
+            </button>
           </div>
           
           <!-- Tampilkan List Langsung di Card Home -->
           <div class="list-group list-group-flush border-top pt-2">
-            <div v-for="(item, idx) in filteredAnalisis.slice(0, 3)" :key="item.nama" class="list-group-item px-0 py-2 border-0 d-flex justify-content-between align-items-center">
+            <div v-for="(item, idx) in filteredAnalisis.slice(0, 3)" :key="item.kategori + '_' + item.brand + '_' + item.nama" class="list-group-item px-0 py-2 border-0 d-flex justify-content-between align-items-center">
               <div class="text-truncate pe-2">
+                <div class="mb-1">
+                  <span class="badge bg-light text-dark border me-1" style="font-size: 0.6rem;">{{ item.displayKategori }}</span>
+                  <span class="badge text-white" :style="{ backgroundColor: getProviderColor(item.displayBrand) }" style="font-size: 0.6rem;">{{ item.displayBrand }}</span>
+                </div>
                 <span class="small fw-bold text-dark d-block text-truncate">{{ item.nama }}</span>
-                <span class="small text-muted" style="font-size: 0.7rem;">Rata-rata: {{ item.rataRata }}</span>
+                <span class="small text-muted" style="font-size: 0.7rem;">Range Terjual: {{ item.minTerjual !== undefined ? item.minTerjual + ' - ' + item.maxTerjual : item.rataRata }}</span>
               </div>
               <div class="badge bg-danger rounded-pill px-2 py-1 text-white shadow-sm flex-shrink-0" style="font-size: 0.75rem;">
                 Hari Ini: {{ item.terjualHariIni }}
               </div>
             </div>
-            <div v-if="filteredAnalisis.length > 3" class="text-center pt-2">
-              <span class="small text-muted fw-bold" style="font-size: 0.7rem;">+{{ filteredAnalisis.length - 3 }} item lainnya...</span>
+            <div v-if="filteredAnalisis.length > 3" class="text-center pt-2 cursor-pointer" @click="bukaAnalisis">
+              <span class="small text-primary fw-bold text-decoration-underline" style="font-size: 0.75rem;">Lihat {{ filteredAnalisis.length - 3 }} detail lainnya...</span>
             </div>
           </div>
         </div>
@@ -204,16 +210,16 @@
             <div class="alert alert-info border-0 shadow-sm mb-3 rounded-4 d-flex gap-3 align-items-center">
               <i class="fa-solid fa-circle-info fs-3 text-info"></i>
               <div class="small">
-                Menampilkan anomali penjualan hari ini (sangat tinggi/rendah) dibandingkan rata-rata 7 hari terakhir. Berguna untuk mendeteksi salah lapor awal/topup.
+                Menampilkan anomali penjualan hari ini (sangat tinggi/rendah) dibandingkan range terjual normal (terendah - tertinggi). Berguna untuk mendeteksi salah lapor awal/topup.
               </div>
             </div>
             
-            <div v-for="item in filteredAnalisis" :key="item.nama" class="card border-0 shadow-sm rounded-4 mb-3">
+            <div v-for="item in filteredAnalisis" :key="item.kategori + '_' + item.brand + '_' + item.nama" class="card border-0 shadow-sm rounded-4 mb-3">
               <div class="card-body p-3">
                 <div class="d-flex justify-content-between align-items-start mb-2">
                   <div>
-                    <span class="badge bg-light text-dark border me-1">{{ item.kategori }}</span>
-                    <span class="badge bg-secondary">{{ item.brand }}</span>
+                    <span class="badge bg-light text-dark border me-1">{{ item.displayKategori }}</span>
+                    <span class="badge text-white" :style="{ backgroundColor: getProviderColor(item.displayBrand) }">{{ item.displayBrand }}</span>
                   </div>
                 </div>
                 <h6 class="fw-bold text-dark mb-3">{{ item.nama }}</h6>
@@ -221,8 +227,8 @@
                 <div class="row g-2 text-center">
                   <div class="col-6">
                     <div class="p-2 bg-light rounded-3">
-                      <div class="small text-muted mb-1">Rata-rata 7 Hari</div>
-                      <div class="fw-bold fs-5 text-primary">{{ item.rataRata }}</div>
+                      <div class="small text-muted mb-1">Range Terjual Normal</div>
+                      <div class="fw-bold fs-5 text-primary">{{ item.minTerjual !== undefined ? item.minTerjual + ' - ' + item.maxTerjual : item.rataRata }}</div>
                     </div>
                   </div>
                   <div class="col-6">
@@ -425,8 +431,21 @@ const filteredAnalisis = computed(() => {
   const parseNum = (val) => parseInt(String(val).replace(/[^0-9-]/g, '')) || 0
   
   const combinedData = analisisData.value.map(item => {
-    // Cari barang ini di stock cache
-    const matchingStok = store.stockCache.find(s => s.nama === item.nama)
+    // Cari barang ini di stock cache berdasarkan nama
+    let matchingStok = store.stockCache.find(s => 
+      String(s.nama || '') === String(item.nama || '') && 
+      String(s.kategori || '').toLowerCase() === String(item.kategori || '').toLowerCase() && 
+      String(s.brand || '').toLowerCase() === String(item.brand || '').toLowerCase()
+    )
+    
+    // Jika tidak ketemu (mungkin karena data lama), coba cari hanya berdasarkan nama secara case-insensitive
+    if (!matchingStok) {
+      matchingStok = store.stockCache.find(s => String(s.nama || '').toLowerCase() === String(item.nama || '').toLowerCase())
+    }
+    
+    // Gunakan data kategori/brand dari cache jika di analisis kosong
+    let displayKategori = item.kategori && item.kategori !== '-' && item.kategori !== 'undefined' ? item.kategori : (matchingStok?.kategori || 'Kategori ?');
+    let displayBrand = item.brand && item.brand !== '-' && item.brand !== 'undefined' ? item.brand : (matchingStok?.brand || 'Provider ?');
     let terjualHariIni = 0
     if (matchingStok) {
       const key = matchingStok.row ? `row_${matchingStok.row}_${matchingStok.tipe}` : `${matchingStok.kategori}_${matchingStok.nama}`.replace(/[^a-zA-Z0-9]/g, "")
@@ -452,19 +471,27 @@ const filteredAnalisis = computed(() => {
     
     return {
       ...item,
+      displayKategori,
+      displayBrand,
       terjualHariIni,
       isAnomali: (() => {
         let isElektrik = matchingStok && matchingStok.tipe === 'saldo';
-        let selisih = Math.abs(terjualHariIni - item.rataRata);
         
         if (isElektrik) {
           // Elektrik: perbandingan beberapa juta
+          let selisih = Math.abs(terjualHariIni - item.rataRata);
           return selisih >= 2000000;
         } else {
           // Barang Fisik:
-          // Hari ini laku 1 tapi kemarin-kemarin 0
+          if (item.minTerjual !== undefined && item.maxTerjual !== undefined) {
+             if (terjualHariIni < 0) return true; // negatif pasti anomali (salah input sisa > awal+topup)
+             if (terjualHariIni < item.minTerjual || terjualHariIni > item.maxTerjual) return true;
+             return false;
+          }
+          
+          // Fallback jika API lama
           if (item.rataRata === 0 && terjualHariIni >= 1) return true;
-          // Hari ini beda jauh (selisih > 5) ATAU 3x lipat
+          let selisih = Math.abs(terjualHariIni - item.rataRata);
           if (selisih > 5 || terjualHariIni > item.rataRata * 3) return true;
           return false;
         }
@@ -480,6 +507,26 @@ const getAnomaliColor = (item) => {
   if (!item.isAnomali) return 'bg-light';
   if (item.terjualHariIni > item.rataRata) return 'bg-danger text-white shadow-sm';
   return 'bg-warning text-dark shadow-sm';
+}
+
+const getProviderColor = (brand) => {
+  if (!brand) return '#6c757d'
+  const b = brand.toLowerCase()
+  // Provider Seluler
+  if (b.includes('telkomsel') || b.includes('simpati') || b.includes('as')) return '#dc3545'
+  if (b.includes('indosat') || b.includes('im3')) return '#fd7e14'
+  if (b.includes('xl')) return '#0d6efd'
+  if (b.includes('axis')) return '#6f42c1'
+  if (b.includes('smartfren')) return '#e83e8c'
+  if (b.includes('tri') || b.includes('three')) return '#212529'
+  
+  // Aksesoris
+  if (b.includes('kabel data toples')) return '#198754'
+  if (b.includes('otg')) return '#6610f2'
+  if (b.includes('kepala charger')) return '#d63384'
+  if (b.includes('earphone')) return '#0dcaf0'
+  
+  return '#6c757d'
 }
 
 const bukaAnalisis = () => {
