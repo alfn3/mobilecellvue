@@ -527,7 +527,7 @@ const searchResults = computed(() => {
   if (!q) return store.stockCache || []
   
   return (store.stockCache || []).filter(item => {
-    const namaMatch = item.nama && item.nama.toLowerCase().includes(q)
+    const namaMatch = item.nama && String(item.nama).toLowerCase().includes(q)
     const brandMatch = item.brand && String(item.brand).toLowerCase().includes(q)
     return namaMatch || brandMatch
   })
@@ -671,7 +671,7 @@ const getMoneyCfg = (item) => {
 }
 
 const getDisplayBrand = (item) => {
-  const k = (item.kategori || "").toLowerCase()
+  const k = String(item.kategori || "").toLowerCase()
   let b = item.brand || '-'
   if (k === 'aksesoris' && b === '-') {
     return 'KABEL DATA TOPLES'
@@ -681,7 +681,7 @@ const getDisplayBrand = (item) => {
 
 const getProviderColor = (brand) => {
   if (!brand) return '#6c757d'
-  const b = brand.toLowerCase()
+  const b = String(brand).toLowerCase()
   // Provider Seluler
   if (b.includes('telkomsel') || b.includes('simpati') || b.includes('as')) return '#dc3545'
   if (b.includes('indosat') || b.includes('im3')) return '#fd7e14'
@@ -750,8 +750,8 @@ const loadStock = async (forceRefresh = false) => {
     if (res && res.success === true) {
       revealedCash.value = []
       const formatted = res.data.map((item, index) => {
-        const n = (item.nama || "").toLowerCase()
-        const k = (item.kategori || "").toLowerCase()
+        const n = String(item.nama || "").toLowerCase()
+        const k = String(item.kategori || "").toLowerCase()
         let tipeFixed = item.tipe || 'barang'
         let brandFixed = item.brand || '-'
         
@@ -968,7 +968,7 @@ const openModalLapor = (item, field, sysVal) => {
         cancelButton: 'btn btn-sm btn-secondary fw-bold px-2 py-1 rounded-3'
       }
     }).then(async (result) => {
-      const displayNama = (item.brand && item.brand !== '-' && item.brand.toLowerCase() !== 'umum' && item.brand.toLowerCase() !== 'aksesoris') 
+      const displayNama = (item.brand && item.brand !== '-' && String(item.brand).toLowerCase() !== 'umum' && String(item.brand).toLowerCase() !== 'aksesoris') 
         ? (String(item.brand).toLowerCase().trim() + "-" + item.nama) : item.nama
 
       if (result.isConfirmed) {

@@ -149,7 +149,7 @@
           
           <!-- Tampilkan List Langsung di Card Home -->
           <div class="list-group list-group-flush border-top pt-2">
-            <div v-for="(item, idx) in filteredAnalisis.slice(0, 3)" :key="item.kategori + '_' + item.brand + '_' + item.nama" class="list-group-item px-0 py-2 border-0 d-flex justify-content-between align-items-center">
+            <div v-for="(item, idx) in filteredAnalisis.slice(0, 10)" :key="item.kategori + '_' + item.brand + '_' + item.nama" class="list-group-item px-0 py-2 border-0 d-flex justify-content-between align-items-center">
               <div class="text-truncate pe-2">
                 <div class="mb-1">
                   <span class="badge bg-light text-dark border me-1" style="font-size: 0.6rem;">{{ item.displayKategori }}</span>
@@ -162,8 +162,8 @@
                 Hari Ini: {{ item.terjualHariIni }}
               </div>
             </div>
-            <div v-if="filteredAnalisis.length > 3" class="text-center pt-2 cursor-pointer" @click="bukaAnalisis">
-              <span class="small text-primary fw-bold text-decoration-underline" style="font-size: 0.75rem;">Lihat {{ filteredAnalisis.length - 3 }} detail lainnya...</span>
+            <div v-if="filteredAnalisis.length > 10" class="text-center pt-2 cursor-pointer" @click="bukaAnalisis">
+              <span class="small text-primary fw-bold text-decoration-underline" style="font-size: 0.75rem;">Lihat {{ filteredAnalisis.length - 10 }} detail lainnya...</span>
             </div>
           </div>
         </div>
@@ -332,7 +332,7 @@ const totalPengeluaran = computed(() => {
   let total = 0
   store.stockCache.forEach(item => {
     // Pengeluaran di-format menjadi tipe='uang' oleh HomeView
-    if (item.tipe === 'uang' && (item.kategori || '').toLowerCase() === 'pengeluaran') {
+    if (item.tipe === 'uang' && String(item.kategori || '').toLowerCase() === 'pengeluaran') {
       const key = item.row ? `row_${item.row}_${item.tipe}` : `${item.kategori}_${item.nama}`.replace(/[^a-zA-Z0-9]/g, "")
       let nominal = parseInt(String(item.harga).replace(/[^0-9-]/g, '')) || 0
       if (store.unsavedChanges.hasOwnProperty(key)) {
@@ -374,7 +374,7 @@ const computedSelisih = computed(() => {
   if (totalPenjualan.value === null || totalUangCash.value === null) return null
   const peng = totalPengeluaran.value || 0
   let modalSore = 0
-  if (store.user.store && store.user.store.toLowerCase().includes('sore')) {
+  if (store.user.store && String(store.user.store).toLowerCase().includes('sore')) {
     modalSore = 1000000
   }
   return (totalUangCash.value + peng) - totalPenjualan.value - modalSore
@@ -511,7 +511,7 @@ const getAnomaliColor = (item) => {
 
 const getProviderColor = (brand) => {
   if (!brand) return '#6c757d'
-  const b = brand.toLowerCase()
+  const b = String(brand).toLowerCase()
   // Provider Seluler
   if (b.includes('telkomsel') || b.includes('simpati') || b.includes('as')) return '#dc3545'
   if (b.includes('indosat') || b.includes('im3')) return '#fd7e14'
@@ -555,8 +555,8 @@ const fetchDashboard = async (isManualRefresh = false) => {
     
     if (resStok && resStok.success) {
       const formatted = resStok.data.map((item, index) => {
-        const n = (item.nama || "").toLowerCase()
-        const k = (item.kategori || "").toLowerCase()
+        const n = String(item.nama || "").toLowerCase()
+        const k = String(item.kategori || "").toLowerCase()
         let typeFixed = item.tipe || 'barang'
         
         if (k === 'pengeluaran') {
