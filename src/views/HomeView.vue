@@ -310,7 +310,7 @@ const totalPenjualan = computed(() => {
       let terjual = (awal + topup) - stok
       let harga = parseNum(item.harga)
       
-      if (terjual > 0) total += (terjual * harga)
+      if (terjual !== 0) total += (terjual * harga)
     } else if (item.tipe === 'saldo') {
       const key = item.row ? `row_${item.row}_${item.tipe}` : `${item.kategori}_${item.nama}`.replace(/[^a-zA-Z0-9]/g, "")
       let stok = parseNum(item.stok)
@@ -321,7 +321,7 @@ const totalPenjualan = computed(() => {
       let topup = parseNum(item.topup)
       let terjual = (awal + topup) - stok
       
-      if (terjual > 0) total += terjual
+      if (terjual !== 0) total += terjual
     }
   })
   return total
